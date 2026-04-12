@@ -1,4 +1,0 @@
-{
-  "title": "Analyze ratchetiq-website repo structure and tech stack",
-  "job": "The ratchetiq-website repo is already cloned at /project/ratchetiq-website. Review that directory and provide a detailed summary of:\n1. The tech stack (frameworks, languages, tools, dependencies)\n2. Main directories and their purpose\n3. Key files (config files, entry points, etc.)\n\nRun: find /project/ratchetiq-website -maxdepth 3 and cat /project/ratchetiq-website/package.json"
-}
