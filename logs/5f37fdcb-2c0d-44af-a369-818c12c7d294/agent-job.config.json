@@ -1,0 +1,4 @@
+{
+  "title": "Fetch GitHub README, summarize project, and save review to file",
+  "job": "Review the README.md in https://github.com/mikejackson-IAML/ratchetiq-website and write a 3-bullet summary of what the project does. Save it to logs/ratchetiq-review.md"
+}
