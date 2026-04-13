@@ -1,0 +1,4 @@
+{
+  "title": "Create commit and push README for dev-department plugin",
+  "job": "Create a single file at plugins/dev-department/README.md with this content:\n\n# Development Department Plugin\n\nPhase-aware build governance for Paperclip.\n\n## Status: Phase 1 - In Development\n\nThis plugin adds a Development Department to Paperclip for managing phased architecture projects.\n\nThen commit and push."
+}
