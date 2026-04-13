@@ -1,0 +1,4 @@
+{
+  "title": "Create ConversationRefs TSX component managing conversation reference URLs",
+  "job": "Create plugins/dev-department/src/ui/components/ConversationRefs.tsx:\nManages conversation reference URLs. Shows list with: system label, role badge, clickable URL, authoritative star, notes preview. Add button shows form: URL input, system dropdown (Claude/ChatGPT/Other), role dropdown (planning/prd/architecture/review/revision), authoritative checkbox, notes textarea. Edit and Delete per reference. Props: references array, scopeType, scopeId, onAdd, onUpdate, onDelete. Import ConversationReference from ../../worker/types. Inline styles. TypeScript. Commit."
+}
