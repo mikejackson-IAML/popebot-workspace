@@ -1,4 +1,3 @@
-import * as types from "./types";
 import { DevProject, Phase, Spec, PRD, ConversationReference, ScopeType } from "./types";
 
 export class StateStore {
@@ -148,4 +147,4 @@ export class StateStore {
   }
 }
 
-export const stateStore = new StateStore();
+export const store = new StateStore();
