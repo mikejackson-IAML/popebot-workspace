@@ -1,4 +1,0 @@
-{
-  "title": "Add timestamps to createSpec, updateSpec, createPRD, updatePRD methods",
-  "job": "Edit plugins/dev-department/src/worker/state.ts\n\nRead the file. Update createSpec and createPRD methods to include timestamps:\n\nIn createSpec, add to the created object:\n  createdAt: new Date().toISOString(),\n  updatedAt: new Date().toISOString(),\n\nIn updateSpec, add:\n  updatedAt: new Date().toISOString(),\n\nSame pattern for createPRD and updatePRD.\n\nCommit."
-}
