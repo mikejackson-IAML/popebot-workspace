@@ -1,4 +1,0 @@
-{
-  "title": "Create React VerificationChecklist TypeScript component with inline styles",
-  "job": "Create plugins/dev-department/src/ui/components/VerificationChecklist.tsx\n\nA React component that displays a verification report. Import VerificationReport and VerificationCheck from ../../worker/verification.\n\nShow:\n- Overall status badge (Passed=green, Failed=red, Partial=yellow, Pending=gray)\n- List of checks with pass/fail/warning/skipped icons\n- Each check shows name, status icon, and details\n- Summary line\n- If escalateToMike is true, show a highlighted banner: 'Needs your review: ' + escalationReason\n\nProps: report: VerificationReport | null. If null, show 'No verification run yet' placeholder.\n\nUse inline styles. TypeScript. Commit."
-}
