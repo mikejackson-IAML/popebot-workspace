@@ -1,0 +1,4 @@
+{
+  "title": "Code review round 2 for dev-department plugin, commit findings",
+  "job": "Read all files in plugins/dev-department/. Create the file plugins/dev-department/REVIEW-ROUND2.md with your code review. Include: verdict (APPROVE or REQUEST CHANGES), status of previous critical findings, any new issues, and whether the plugin is ready for Phase 2. Commit the file."
+}
