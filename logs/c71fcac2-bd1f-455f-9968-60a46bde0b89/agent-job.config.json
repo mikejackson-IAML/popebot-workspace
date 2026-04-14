@@ -1,0 +1,4 @@
+{
+  "title": "Fix named export import for ConversationRefs in PhaseDetail.tsx",
+  "job": "Edit plugins/dev-department/src/ui/components/PhaseDetail.tsx\n\nRead the file. Change:\n  import ConversationRefs from './ConversationRefs'\nto:\n  import { ConversationRefs } from './ConversationRefs'\n\nThis fixes the named export import. Commit."
+}
