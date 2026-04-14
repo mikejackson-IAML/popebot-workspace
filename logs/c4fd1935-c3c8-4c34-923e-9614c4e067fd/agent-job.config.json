@@ -1,0 +1,4 @@
+{
+  "title": "Edit PhaseList.tsx to add delete confirmation and fix phase number display",
+  "job": "Edit plugins/dev-department/src/ui/components/PhaseList.tsx\n\nRead the file. Make these changes:\n\n1. In the delete button handler, add a confirmation:\n   Change the delete button onClick from directly calling onDelete to:\n   onClick={() => { if (window.confirm('Delete Phase ' + p.phaseNumber + ': ' + p.title + '? This will also delete associated specs, PRDs, and conversation references.')) onDelete(p.id) }}\n\n2. Display phaseNumber as the sortOrder position (index + 1) instead of the stored phaseNumber, so they always match the visual order.\n\nCommit."
+}
