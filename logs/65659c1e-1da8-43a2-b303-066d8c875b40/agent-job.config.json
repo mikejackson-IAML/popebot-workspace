@@ -1,0 +1,4 @@
+{
+  "title": "Create RevisionEventForm React TypeScript component with phases",
+  "job": "Create plugins/dev-department/src/ui/components/RevisionEventForm.tsx\n\nA React component for creating revision events after a review decision.\n\nShow a form with:\n- Summary textarea (what changed)\n- Reason textarea (why it changed)\n- Affected phases: checkboxes listing all phases in the project (passed as props)\n- Note: when a revision event is created, affected phases should be flagged\n\nProps: sourcePhaseId, projectPhases (Phase array), onSave callback that receives { sourcePhaseId, affectedPhaseIds, summary, reason }\n\nInclude a heading: 'Record Downstream Impact'\nShow this form only after a review decision has been made.\n\nUse inline styles. TypeScript. Import Phase from ../../worker/types. Commit."
+}
