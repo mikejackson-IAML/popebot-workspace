@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import type { DevProject, ProjectStatus, Phase } from "../../worker/types";
 
 interface ProjectHeaderProps {
@@ -21,6 +21,7 @@ export default function ProjectHeader({ project, phases, onSave, onCancel }: Pro
   const [name, setName] = useState(project.name);
   const [objective, setObjective] = useState(project.objective);
   const [status, setStatus] = useState<ProjectStatus>(project.status);
+  useEffect(() => { setName(project.name); setObjective(project.objective); setStatus(project.status); }, [project.id, project.updatedAt]);
 
   const activePhase = phases.find((p) => p.id === project.activePhaseId);
 

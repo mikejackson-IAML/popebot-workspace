@@ -1,12 +1,11 @@
-import React, { useState } from "react";
-import type { DevProject, Phase, ProjectStatus, ConversationReference } from "../../worker/types";
+import React, { useState, useEffect } from "react";
+import type { DevProject, Phase, Spec, PRD, ProjectStatus, ConversationReference } from "../../worker/types";
+import { store } from "../../worker/state";
 import ProjectHeader from "./ProjectHeader";
 import PhaseList from "./PhaseList";
 import PhaseDetail from "./PhaseDetail";
 import { ConversationRefs } from "./ConversationRefs";
 
-// Placeholder data — replace with real plugin state API calls
-const MOCK_PROJECTS: DevProject[] = [];
 
 const STATUS_COLORS: Record<ProjectStatus, { bg: string; text: string }> = {
   Draft:    { bg: "#f3f4f6", text: "#6b7280" },
@@ -32,73 +31,50 @@ function StatusBadge({ status }: { status: ProjectStatus }) {
 }
 
 export default function DepartmentView() {
-  const [projects, setProjects] = useState<DevProject[]>(MOCK_PROJECTS);
+  const [projects, setProjects] = useState<DevProject[]>([]);
   const [selectedProject, setSelectedProject] = useState<DevProject | null>(null);
   const [phases, setPhases] = useState<Phase[]>([]);
   const [selectedPhase, setSelectedPhase] = useState<Phase | null>(null);
+  const [currentSpec, setCurrentSpec] = useState<Spec | null>(null);
+  const [currentPRD, setCurrentPRD] = useState<PRD | null>(null);
+
+  // Load from store on mount
+  useEffect(() => { setProjects(store.listProjects()); }, []);
   const [conversationRefs, setConversationRefs] = useState<ConversationReference[]>([]);
 
   const handleSelectProject = (project: DevProject) => {
     setSelectedProject(project);
+    setPhases(store.getPhasesByProject(project.id));
     setSelectedPhase(null);
-    // phases would be loaded from store here; for now reset to local state
-    setPhases([]);
+    setCurrentSpec(null);
+    setCurrentPRD(null);
   };
 
   const handleCreateProject = () => {
-    const newProject: DevProject = {
-      id: crypto.randomUUID(),
-      name: "New Project",
-      objective: "",
-      owner: "",
-      status: "Draft",
-      activePhaseId: null,
-      roadmapSummary: "",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setProjects((prev) => [...prev, newProject]);
-    handleSelectProject(newProject);
+    const project = store.createProject({ name: "New Project", objective: "", owner: "Mike", status: "Draft", activePhaseId: null, roadmapSummary: "" });
+    setProjects(store.listProjects());
+    setSelectedProject(project);
+    setPhases([]);
   };
 
   const handleSaveProject = (updates: Partial<DevProject>) => {
     if (!selectedProject) return;
-    const updated = { ...selectedProject, ...updates, updatedAt: new Date().toISOString() };
-    setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    const updated = store.updateProject(selectedProject.id, updates);
     setSelectedProject(updated);
+    setProjects(store.listProjects());
   };
 
   const handleAddPhase = () => {
     if (!selectedProject) return;
-    const nextNumber = phases.length > 0
-      ? Math.max(...phases.map((p) => p.phaseNumber)) + 1
-      : 1;
-    const newPhase: Phase = {
-      id: crypto.randomUUID(),
-      projectId: selectedProject.id,
-      phaseNumber: nextNumber,
-      title: `Phase ${nextNumber}`,
-      objective: "",
-      description: "",
-      status: "DraftSpec",
-      prerequisites: "",
-      successCriteria: "",
-      riskNotes: "",
-      freezeState: "EditableDownstream",
-      sortOrder: nextNumber,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setPhases((prev) => [...prev, newPhase]);
+    const existingPhases = store.getPhasesByProject(selectedProject.id);
+    store.createPhase({ projectId: selectedProject.id, phaseNumber: existingPhases.length + 1, title: "New Phase", objective: "", description: "", status: "DraftSpec", prerequisites: "", successCriteria: "", riskNotes: "", freezeState: "EditableDownstream", sortOrder: existingPhases.length });
+    setPhases(store.getPhasesByProject(selectedProject.id));
   };
 
   const handleDeletePhase = (phaseId: string) => {
-    setPhases((prev) => prev.filter((p) => p.id !== phaseId));
+    store.deletePhase(phaseId);
+    if (selectedProject) setPhases(store.getPhasesByProject(selectedProject.id));
     if (selectedPhase?.id === phaseId) setSelectedPhase(null);
-    // Clear activePhaseId on project if it points to deleted phase
-    if (selectedProject?.activePhaseId === phaseId) {
-      handleSaveProject({ activePhaseId: null });
-    }
   };
 
   const handleReorderPhase = (phaseId: string, direction: "up" | "down") => {
@@ -117,14 +93,15 @@ export default function DepartmentView() {
   };
 
   const handleSavePhase = (updates: Partial<Phase>) => {
-    if (!selectedPhase) return;
-    const updated = { ...selectedPhase, ...updates, updatedAt: new Date().toISOString() };
-    setPhases((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-    setSelectedPhase(updated);
+    if (!selectedPhase || !selectedProject) return;
+    try {
+      const updated = store.updatePhase(selectedPhase.id, updates);
+      setSelectedPhase(updated);
+      setPhases(store.getPhasesByProject(selectedProject.id));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : String(err));
+    }
   };
-
-  const handleSetActivePhase = (phaseId: string | null) => {
-    handleSaveProject({ activePhaseId: phaseId });
   };
 
   const handleAddRef = (ref: Omit<ConversationReference, "id">) => {
@@ -140,12 +117,16 @@ export default function DepartmentView() {
     setConversationRefs((prev) => prev.filter((r) => r.id !== id));
   };
 
-  const handleAttachSpec = (_data: { title: string; sourceRef: string }) => {
-    // Stub: spec persistence will be wired in Phase 2
+  const handleAttachSpec = (data: { title: string; sourceRef: string }) => {
+    if (!selectedPhase) return;
+    const spec = store.createSpec({ phaseId: selectedPhase.id, title: data.title, sourceRef: data.sourceRef, version: "1.0", author: "Mike", approvalState: "Pending", notes: "" });
+    setCurrentSpec(spec);
   };
 
-  const handleAttachPRD = (_data: { title: string; sourceRef: string }) => {
-    // Stub: PRD persistence will be wired in Phase 2
+  const handleAttachPRD = (data: { title: string; sourceRef: string }) => {
+    if (!selectedPhase) return;
+    const prd = store.createPRD({ phaseId: selectedPhase.id, title: data.title, sourceRef: data.sourceRef, version: "1.0", approvalState: "Pending", deviationNotes: "", notes: "" });
+    setCurrentPRD(prd);
   };
 
   // Phase detail view
