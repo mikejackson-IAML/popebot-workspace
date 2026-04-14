@@ -33,6 +33,12 @@ export class StateStore {
   }
 
   deleteProject(id: string): void {
+    // Delete project-scoped conversation refs
+    for (const [refId, ref] of this.conversationRefs) {
+      if (ref.scopeType === "project" && ref.scopeId === id) {
+        this.conversationRefs.delete(refId);
+      }
+    }
     for (const phase of this.getPhasesByProject(id)) {
       this.deletePhase(phase.id);
     }
@@ -81,6 +87,11 @@ export class StateStore {
       this.conversationRefs.delete(ref.id);
     }
 
+    // Cascade delete Phase 2 entities
+    for (const [did, d] of this.buildDispatches) { if (d.phaseId === id) this.buildDispatches.delete(did); }
+    for (const [oid, o] of this.buildOutputs) { if (o.phaseId === id) this.buildOutputs.delete(oid); }
+    for (const [rid, r] of this.reviews) { if (r.phaseId === id) this.reviews.delete(rid); }
+    for (const [eid, e] of this.revisionEvents) { if (e.sourcePhaseId === id) this.revisionEvents.delete(eid); }
     this.phases.delete(id);
   }
 
@@ -96,8 +107,9 @@ export class StateStore {
 
   // Specs
 
-  createSpec(data: Omit<Spec, "id">): Spec {
-    const spec: Spec = { id: crypto.randomUUID(), ...data };
+  createSpec(data: Omit<Spec, "id" | "createdAt" | "updatedAt">): Spec {
+    const now = new Date().toISOString();
+    const spec: Spec = { id: crypto.randomUUID(), ...data, createdAt: now, updatedAt: now };
     this.specs.set(spec.id, spec);
     return spec;
   }
@@ -112,7 +124,7 @@ export class StateStore {
   updateSpec(id: string, data: Partial<Spec>): Spec {
     const existing = this.specs.get(id);
     if (!existing) throw new Error(`Spec ${id} not found`);
-    const updated: Spec = { ...existing, ...data, id };
+    const updated: Spec = { ...existing, ...data, id, updatedAt: new Date().toISOString() };
     this.specs.set(id, updated);
     return updated;
   }
@@ -123,8 +135,9 @@ export class StateStore {
 
   // PRDs
 
-  createPRD(data: Omit<PRD, "id">): PRD {
-    const prd: PRD = { id: crypto.randomUUID(), ...data };
+  createPRD(data: Omit<PRD, "id" | "createdAt" | "updatedAt">): PRD {
+    const now2 = new Date().toISOString();
+    const prd: PRD = { id: crypto.randomUUID(), ...data, createdAt: now2, updatedAt: now2 };
     this.prds.set(prd.id, prd);
     return prd;
   }
@@ -139,7 +152,7 @@ export class StateStore {
   updatePRD(id: string, data: Partial<PRD>): PRD {
     const existing = this.prds.get(id);
     if (!existing) throw new Error(`PRD ${id} not found`);
-    const updated: PRD = { ...existing, ...data, id };
+    const updated: PRD = { ...existing, ...data, id, updatedAt: new Date().toISOString() };
     this.prds.set(id, updated);
     return updated;
   }

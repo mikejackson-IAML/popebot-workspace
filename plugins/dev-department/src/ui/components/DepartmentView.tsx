@@ -3,7 +3,7 @@ import type { DevProject, Phase, ProjectStatus, ConversationReference } from "..
 import ProjectHeader from "./ProjectHeader";
 import PhaseList from "./PhaseList";
 import PhaseDetail from "./PhaseDetail";
-import ConversationRefs from "./ConversationRefs";
+import { ConversationRefs } from "./ConversationRefs";
 
 // Placeholder data — replace with real plugin state API calls
 const MOCK_PROJECTS: DevProject[] = [];
