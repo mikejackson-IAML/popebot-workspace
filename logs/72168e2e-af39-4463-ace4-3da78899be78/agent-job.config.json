@@ -1,0 +1,4 @@
+{
+  "title": "Create PopeBot build packet dispatch integration module TypeScript",
+  "job": "Create a new file plugins/dev-department/src/worker/buildPacket.ts\n\nThis module handles dispatching a phase build to PopeBot. It should:\n\n1. Import types from ./types\n2. Export an interface BuildPacketConfig with: popebotUrl, apiKey, targetRepo, environment\n3. Export a function assembleBuildPacket(phase, spec, prd, config) that creates a structured build packet string from phase data\n4. Export an async function dispatchToPopeBot(packet, config) that:\n   - POSTs to config.popebotUrl/api/create-agent-job\n   - With x-api-key header\n   - With {job: packet} body\n   - Returns {agentJobId, branch, title} on success\n   - Returns {error: string} on failure\n\nKeep it simple — this is the integration point. Commit."
+}
