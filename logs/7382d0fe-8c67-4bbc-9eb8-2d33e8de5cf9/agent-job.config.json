@@ -1,0 +1,4 @@
+{
+  "title": "Add phaseId-based secondary index maps to worker state manager",
+  "job": "Edit plugins/dev-department/src/worker/state.ts\n\nRead the existing file. Add secondary index maps for phaseId-based lookups:\n\nprivate specsByPhase: Map<string, string> = new Map(); // phaseId -> specId\nprivate prdsByPhase: Map<string, string> = new Map(); // phaseId -> prdId\n\nUpdate createSpec to also set: this.specsByPhase.set(spec.phaseId, spec.id)\nUpdate deleteSpec to also clear: this.specsByPhase.delete(existing.phaseId)\nUpdate getSpecByPhase to use: const specId = this.specsByPhase.get(phaseId); return specId ? this.specs.get(specId) || null : null;\n\nSame pattern for PRD indexes.\n\nUpdate hydrate() to rebuild indexes after loading data.\n\nCommit."
+}
