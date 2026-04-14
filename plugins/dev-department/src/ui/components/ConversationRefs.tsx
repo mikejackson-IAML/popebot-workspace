@@ -1,12 +1,9 @@
 import React, { useState } from "react";
-import { ConversationReference } from "../../worker/types";
-
-type ConversationSystem = "Claude" | "ChatGPT" | "Other";
-type ConversationRole = "planning" | "prd" | "architecture" | "review" | "revision";
+import { ConversationReference, ConversationSystem, ConversationRole, ScopeType } from "../../worker/types";
 
 interface Props {
   references: ConversationReference[];
-  scopeType: string;
+  scopeType: ScopeType;
   scopeId: string;
   onAdd: (ref: Omit<ConversationReference, "id">) => void;
   onUpdate: (id: string, updates: Partial<ConversationReference>) => void;
@@ -111,11 +108,11 @@ interface EditingState {
 }
 
 function RefRow({
-  ref: r,
+  conversationRef: r,
   onUpdate,
   onDelete,
 }: {
-  ref: ConversationReference;
+  conversationRef: ConversationReference;
   onUpdate: (id: string, updates: Partial<ConversationReference>) => void;
   onDelete: (id: string) => void;
 }) {
@@ -340,13 +337,15 @@ export function ConversationRefs({ references, scopeType, scopeId, onAdd, onUpda
   const [form, setForm] = useState({ ...emptyForm });
 
   function handleAdd() {
-    if (!form.url.trim()) return;
+    const trimmedUrl = form.url.trim();
+    if (!trimmedUrl) return;
+    if (!trimmedUrl.startsWith("https://") && !trimmedUrl.startsWith("http://")) return;
     onAdd({
-      scopeType: scopeType as ConversationReference["scopeType"],
+      scopeType,
       scopeId,
       system: form.system,
       role: form.role,
-      url: form.url.trim(),
+      url: trimmedUrl,
       status: "active",
       authoritative: form.authoritative,
       notes: form.notes,
@@ -450,12 +449,12 @@ export function ConversationRefs({ references, scopeType, scopeId, onAdd, onUpda
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
             <input
-              id="auth-add"
+              id={`auth-add-${scopeId}`}
               type="checkbox"
               checked={form.authoritative}
               onChange={(e) => setForm((f) => ({ ...f, authoritative: e.target.checked }))}
             />
-            <label htmlFor="auth-add" style={{ fontSize: "13px", color: "#374151" }}>
+            <label htmlFor={`auth-add-${scopeId}`} style={{ fontSize: "13px", color: "#374151" }}>
               Authoritative source
             </label>
           </div>
@@ -504,7 +503,7 @@ export function ConversationRefs({ references, scopeType, scopeId, onAdd, onUpda
       )}
 
       {references.map((r) => (
-        <RefRow key={r.id} ref={r} onUpdate={onUpdate} onDelete={onDelete} />
+        <RefRow key={r.id} conversationRef={r} onUpdate={onUpdate} onDelete={onDelete} />
       ))}
     </div>
   );
