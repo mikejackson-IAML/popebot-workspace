@@ -1,0 +1,4 @@
+{
+  "title": "Edit ProjectHeader and PhaseList components and commit changes",
+  "job": "Edit two files:\n\n1. plugins/dev-department/src/ui/components/ProjectHeader.tsx:\nAdd useEffect to resync local state when project prop changes:\nuseEffect(() => {\n  setName(project.name);\n  setObjective(project.objective);\n  setStatus(project.status);\n}, [project.id, project.updatedAt]);\nImport useEffect from react if not already imported.\n\n2. plugins/dev-department/src/ui/components/PhaseList.tsx:\nWhen displaying phase numbers, use the visual position (index + 1) instead of p.phaseNumber so display always matches sort order.\n\nCommit both."
+}
