@@ -1,4 +1,0 @@
-{
-  "title": "Add create/update methods for Phase 2 entities in worker state",
-  "job": "Edit plugins/dev-department/src/worker/state.ts\n\nRead the existing file. Add full create/update methods for Phase 2 entities that currently only have getters:\n\n1. createBuildDispatch(data): creates BuildDispatch with generated id and createdAt timestamp\n2. updateBuildDispatch(id, data): partial update\n3. createBuildOutput(data): creates BuildOutput with generated id and createdAt\n4. updateBuildOutput(id, data): partial update\n5. createReview(data): creates Review with generated id\n6. updateReview(id, data): partial update\n7. createRevisionEvent(data): creates RevisionEvent with generated id and createdAt\n8. updateRevisionEvent(id, data): partial update\n\nFollow the exact same pattern as createProject/updateProject. Import all types needed. Mark dirty=true in each method (the dirty flag should already exist from Phase 2). Commit."
-}
