@@ -1,6 +1,9 @@
 import React, { useState } from "react";
-import type { DevProject, Phase, ProjectStatus, PhaseStatus } from "../../worker/types";
+import type { DevProject, Phase, ProjectStatus, ConversationReference } from "../../worker/types";
 import ProjectHeader from "./ProjectHeader";
+import PhaseList from "./PhaseList";
+import PhaseDetail from "./PhaseDetail";
+import ConversationRefs from "./ConversationRefs";
 
 // Placeholder data — replace with real plugin state API calls
 const MOCK_PROJECTS: DevProject[] = [];
@@ -10,16 +13,6 @@ const STATUS_COLORS: Record<ProjectStatus, { bg: string; text: string }> = {
   Active:   { bg: "#dcfce7", text: "#16a34a" },
   Blocked:  { bg: "#fee2e2", text: "#dc2626" },
   Archived: { bg: "#f3f4f6", text: "#9ca3af" },
-};
-
-const PHASE_STATUS_LABELS: Record<PhaseStatus, string> = {
-  DraftSpec:                "Draft Spec",
-  SpecApproved:             "Spec Approved",
-  PRDAttached:              "PRD Attached",
-  ReadyForBuild:            "Ready for Build",
-  Accepted:                 "Accepted",
-  ReworkRequired:           "Rework Required",
-  Closed:                   "Closed",
 };
 
 function StatusBadge({ status }: { status: ProjectStatus }) {
@@ -38,63 +31,23 @@ function StatusBadge({ status }: { status: ProjectStatus }) {
   );
 }
 
-function PhaseList({ phases }: { phases: Phase[] }) {
-  if (phases.length === 0) {
-    return (
-      <div style={{ padding: "24px", textAlign: "center", color: "#9ca3af", fontSize: "14px" }}>
-        No phases yet. Add a phase to get started.
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ padding: "12px 16px" }}>
-      {phases.map((phase) => (
-        <div
-          key={phase.id}
-          style={{
-            padding: "12px",
-            border: "1px solid #e5e7eb",
-            borderRadius: "8px",
-            marginBottom: "8px",
-            backgroundColor: "#fff",
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontWeight: 600, fontSize: "14px", color: "#111827" }}>
-              Phase {phase.phaseNumber}: {phase.title}
-            </span>
-            <span style={{
-              fontSize: "12px",
-              padding: "2px 8px",
-              borderRadius: "12px",
-              backgroundColor: "#eff6ff",
-              color: "#1d4ed8",
-              fontWeight: 500,
-            }}>
-              {PHASE_STATUS_LABELS[phase.status]}
-            </span>
-          </div>
-          {phase.objective && (
-            <p style={{ margin: "6px 0 0", fontSize: "13px", color: "#6b7280" }}>
-              {phase.objective}
-            </p>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export default function DepartmentView() {
   const [projects, setProjects] = useState<DevProject[]>(MOCK_PROJECTS);
   const [selectedProject, setSelectedProject] = useState<DevProject | null>(null);
-  // In a real implementation, phases would be loaded per project
-  const [phases] = useState<Phase[]>([]);
+  const [phases, setPhases] = useState<Phase[]>([]);
+  const [selectedPhase, setSelectedPhase] = useState<Phase | null>(null);
+  const [conversationRefs, setConversationRefs] = useState<ConversationReference[]>([]);
+
+  const handleSelectProject = (project: DevProject) => {
+    setSelectedProject(project);
+    setSelectedPhase(null);
+    // phases would be loaded from store here; for now reset to local state
+    setPhases([]);
+  };
 
   const handleCreateProject = () => {
     const newProject: DevProject = {
-      id: `proj-${Date.now()}`,
+      id: crypto.randomUUID(),
       name: "New Project",
       objective: "",
       owner: "",
@@ -105,7 +58,7 @@ export default function DepartmentView() {
       updatedAt: new Date().toISOString(),
     };
     setProjects((prev) => [...prev, newProject]);
-    setSelectedProject(newProject);
+    handleSelectProject(newProject);
   };
 
   const handleSaveProject = (updates: Partial<DevProject>) => {
@@ -115,8 +68,114 @@ export default function DepartmentView() {
     setSelectedProject(updated);
   };
 
-  // Detail view
+  const handleAddPhase = () => {
+    if (!selectedProject) return;
+    const nextNumber = phases.length > 0
+      ? Math.max(...phases.map((p) => p.phaseNumber)) + 1
+      : 1;
+    const newPhase: Phase = {
+      id: crypto.randomUUID(),
+      projectId: selectedProject.id,
+      phaseNumber: nextNumber,
+      title: `Phase ${nextNumber}`,
+      objective: "",
+      description: "",
+      status: "DraftSpec",
+      prerequisites: "",
+      successCriteria: "",
+      riskNotes: "",
+      freezeState: "EditableDownstream",
+      sortOrder: nextNumber,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setPhases((prev) => [...prev, newPhase]);
+  };
+
+  const handleDeletePhase = (phaseId: string) => {
+    setPhases((prev) => prev.filter((p) => p.id !== phaseId));
+    if (selectedPhase?.id === phaseId) setSelectedPhase(null);
+    // Clear activePhaseId on project if it points to deleted phase
+    if (selectedProject?.activePhaseId === phaseId) {
+      handleSaveProject({ activePhaseId: null });
+    }
+  };
+
+  const handleReorderPhase = (phaseId: string, direction: "up" | "down") => {
+    const sorted = [...phases].sort((a, b) => a.sortOrder - b.sortOrder);
+    const idx = sorted.findIndex((p) => p.id === phaseId);
+    if (idx === -1) return;
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= sorted.length) return;
+    const a = sorted[idx];
+    const b = sorted[swapIdx];
+    const updatedA = { ...a, sortOrder: b.sortOrder };
+    const updatedB = { ...b, sortOrder: a.sortOrder };
+    setPhases((prev) =>
+      prev.map((p) => (p.id === updatedA.id ? updatedA : p.id === updatedB.id ? updatedB : p))
+    );
+  };
+
+  const handleSavePhase = (updates: Partial<Phase>) => {
+    if (!selectedPhase) return;
+    const updated = { ...selectedPhase, ...updates, updatedAt: new Date().toISOString() };
+    setPhases((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    setSelectedPhase(updated);
+  };
+
+  const handleSetActivePhase = (phaseId: string | null) => {
+    handleSaveProject({ activePhaseId: phaseId });
+  };
+
+  const handleAddRef = (ref: Omit<ConversationReference, "id">) => {
+    const newRef: ConversationReference = { ...ref, id: crypto.randomUUID() };
+    setConversationRefs((prev) => [...prev, newRef]);
+  };
+
+  const handleUpdateRef = (id: string, updates: Partial<ConversationReference>) => {
+    setConversationRefs((prev) => prev.map((r) => (r.id === id ? { ...r, ...updates } : r)));
+  };
+
+  const handleDeleteRef = (id: string) => {
+    setConversationRefs((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  // Phase detail view
+  if (selectedProject && selectedPhase) {
+    return (
+      <div style={{ fontFamily: "system-ui, sans-serif", height: "100%" }}>
+        <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", display: "flex", gap: "8px", alignItems: "center" }}>
+          <button
+            onClick={() => setSelectedPhase(null)}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "#2563eb",
+              fontSize: "14px",
+              padding: 0,
+            }}
+          >
+            ← Back to {selectedProject.name}
+          </button>
+        </div>
+        <PhaseDetail
+          phase={selectedPhase}
+          spec={null}
+          prd={null}
+          onSave={handleSavePhase}
+          onCancel={() => setSelectedPhase(null)}
+        />
+      </div>
+    );
+  }
+
+  // Project detail view
   if (selectedProject) {
+    const projectRefs = conversationRefs.filter(
+      (r) => r.scopeType === "project" && r.scopeId === selectedProject.id
+    );
+
     return (
       <div style={{ fontFamily: "system-ui, sans-serif", height: "100%" }}>
         <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb" }}>
@@ -129,9 +188,6 @@ export default function DepartmentView() {
               color: "#2563eb",
               fontSize: "14px",
               padding: 0,
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
             }}
           >
             ← Back to Projects
@@ -145,10 +201,52 @@ export default function DepartmentView() {
           onCancel={() => setSelectedProject(null)}
         />
 
-        <div style={{ padding: "12px 16px 4px", fontWeight: 600, fontSize: "13px", color: "#374151" }}>
-          Phases
-        </div>
-        <PhaseList phases={phases} />
+        {/* Active phase selector */}
+        {phases.length > 0 && (
+          <div style={{ padding: "8px 16px", display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "12px", fontWeight: 600, color: "#374151" }}>Active Phase:</span>
+            <select
+              value={selectedProject.activePhaseId ?? ""}
+              onChange={(e) => handleSetActivePhase(e.target.value || null)}
+              style={{
+                padding: "4px 8px",
+                border: "1px solid #d1d5db",
+                borderRadius: "6px",
+                fontSize: "12px",
+                color: "#111827",
+                backgroundColor: "#fff",
+                cursor: "pointer",
+              }}
+            >
+              <option value="">— None —</option>
+              {[...phases]
+                .sort((a, b) => a.sortOrder - b.sortOrder)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    Phase {p.phaseNumber}: {p.title}
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
+
+        <PhaseList
+          phases={phases}
+          selectedPhaseId={selectedPhase?.id ?? null}
+          onSelect={(phase) => setSelectedPhase(phase)}
+          onAdd={handleAddPhase}
+          onDelete={handleDeletePhase}
+          onReorder={handleReorderPhase}
+        />
+
+        <ConversationRefs
+          references={projectRefs}
+          scopeType="project"
+          scopeId={selectedProject.id}
+          onAdd={handleAddRef}
+          onUpdate={handleUpdateRef}
+          onDelete={handleDeleteRef}
+        />
       </div>
     );
   }
@@ -192,7 +290,7 @@ export default function DepartmentView() {
           {projects.map((project) => (
             <div
               key={project.id}
-              onClick={() => setSelectedProject(project)}
+              onClick={() => handleSelectProject(project)}
               style={{
                 padding: "12px",
                 border: "1px solid #e5e7eb",
