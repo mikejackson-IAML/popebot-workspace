@@ -1,48 +1,60 @@
-The review is ready. Here's the full content:
+The write permission was blocked. Could you approve the write so I can save the review file?
+
+In the meantime, here's the full review:
 
 ---
 
-# Devil's Advocate Review: dev-department Plugin (Round 6)
+# Devil's Advocate Review: dev-department Plugin — Phase 2 Scope
 
 **Verdict: PASS**
 
-The Code Reviewer approved with no blockers. That's the right call — no compile errors, no wrong imports, no data model shapes that force a breaking migration. What follows is what they didn't examine.
+The Code Reviewer approved with no blockers. Correct call. No compile errors, no wrong imports, no missing required props, no data model shapes that force a breaking migration.
 
 ---
 
-## New Findings the Code Reviewer Did Not Cover
+## Prior Findings Status
 
-### 1. Phase delete in UI does not clean up conversation refs from local state
-`DepartmentView.tsx:93` — `handleDeletePhase` removes the phase from `phases` state but never touches `conversationRefs`. Phase-scoped refs become invisible but accumulate as garbage. The CR caught the worker-side cascade in Round 2 but never checked the UI-side equivalent.
+All Round 2 critical issues (wrong props, bad imports, missing cascades) marked FIXED — confirmed. Round 1 DA findings (#1-#5) remain as low/medium-severity state management issues — none are compile errors or migration-forcing.
 
-### 2. `conversationRefs` state is flat and global — no project scoping on navigation
-`DepartmentView.tsx:41` — single flat array shared across all projects. `handleSelectProject` resets `phases` to `[]` but not `conversationRefs`. Grows unboundedly across project switches.
+---
 
-### 3. `ProjectHeader` local state diverges from parent on external update
-`ProjectHeader.tsx:25-27` — initializes from props via `useState` with **no** `useEffect` resync (unlike `PhaseDetail` which at least has `[phase.id]`). When `handleSetActivePhase` calls `handleSaveProject({ activePhaseId })`, `selectedProject` updates but header keeps showing stale values. Subsequent header save overwrites `activePhaseId`. **Medium severity** — silent data loss within a session.
+## What the Code Reviewer Did Not Cover
 
-### 4. `handleSavePhase` has the same stale-closure problem as `handleSaveProject`
-`DepartmentView.tsx:116-120` — spreads over `selectedPhase` from the closure. CR flagged `handleSaveProject` (item #5) but missed the identical pattern here.
+### 1. `handleDeletePhase` in UI still does not clean up `conversationRefs` state
 
-### 5. `RefRow` editing state doesn't resync from props
-Same class as #3 — `useState` from props, no `useEffect`. Cosmetic.
+`DepartmentView.tsx:93` — removes the phase from `phases` but leaves orphaned phase-scoped refs in `conversationRefs`. Flagged in Round 1 DA, still present. Not a compile error — refs silently accumulate as garbage.
+
+**NOTE for Phase 2:** When persistence is wired, orphaned refs will persist unless the UI-side delete mirrors the worker-side cascade.
+
+### 2. `handleAttachSpec` / `handleAttachPRD` are no-ops
+
+`DepartmentView.tsx:141-146` — both stubs do nothing. User fills in the form, clicks save, data vanishes. Not a compile error — stubs are correctly typed.
+
+**NOTE for Phase 2:** Wire these or remove the UI forms to avoid user confusion.
+
+### 3. ProjectHeader state divergence persists
+
+`ProjectHeader.tsx:25-27` — `useState` from props with no `useEffect` resync. Edit name in header -> select active phase -> `handleSetActivePhase` persists with old name -> header save persists without `activePhaseId`. Two writes, each missing the other's data.
+
+**NOTE for Phase 2:** Fix before persistence integration. Functional updaters + `useEffect` resync on `[project]`.
+
+### 4. `RevisionEvent` cascade deletes by `sourcePhaseId` only
+
+`state.ts:80` — `deletePhase` cascades where `e.sourcePhaseId === id` but not where the deleted phase appears in `e.affectedPhaseIds`. Orphaned IDs remain.
+
+**NOTE for Phase 2:** Filter or clean on delete before revision event UI renders.
 
 ---
 
 ## Summary
 
-| # | Risk | Area |
-|---|------|------|
-| 1 | Low | Orphaned conversation refs in UI state |
-| 2 | Low | Flat global refs array, no project scoping |
-| 3 | **Medium** | ProjectHeader never resyncs, causes silent overwrites |
-| 4 | Low | handleSavePhase stale closure (NOTE for Phase 2) |
-| 5 | Low | RefRow editing state stale (cosmetic) |
+| # | Severity | Blocker? | Phase |
+|---|----------|----------|-------|
+| 1 | Low | No | NOTE for Phase 2 |
+| 2 | Low | No | NOTE for Phase 2 |
+| 3 | Medium | No | NOTE for Phase 2 |
+| 4 | Low | No | NOTE for Phase 2 |
 
-No compile-time blockers. No breaking migration risk. PASS for Phase 1 scope.
+No compile-time errors missed. No data model shapes requiring breaking migration. All findings are state management hygiene for Phase 2.
 
----
-
-## If I had to bet on what breaks next phase, it would be...
-
-**The ProjectHeader state divergence (#3) combining with the stale closure pattern to produce "last write wins, but the last write is wrong" bugs.** Phase 2 wires persistence. Operator edits project name in header, then selects an active phase from the dropdown. `handleSetActivePhase` persists `{ ...selectedProject, activePhaseId }` — with the *old* name. Operator saves from header — persists `{ name, objective, status }` — without `activePhaseId`. One write stomps the other. The fix is the same one recommended since Round 5: derive `selectedProject` from `projects` state, use functional updaters, add `useEffect` resyncs in `ProjectHeader`. It hasn't been done, and the risk compounds with each new save path in Phase 2.
+**PASS.**
