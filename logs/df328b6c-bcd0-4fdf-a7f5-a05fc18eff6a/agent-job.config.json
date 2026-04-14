@@ -1,0 +1,4 @@
+{
+  "title": "Read source files and commit code review markdown in one job",
+  "job": "Do TWO things in ONE commit:\n\n1. Read all files in plugins/dev-department/src/ and plugins/dev-department/paperclip-plugin.json\n\n2. Create plugins/dev-department/reviews/round2-code-review.md with a code review. Include:\n- Verdict: APPROVE or REQUEST CHANGES\n- Check if typed maps are used (no Map<string,any>)\n- Check if cascade deletes exist\n- Check if UI imports PhaseList component\n- Check if ConversationRefs is wired into PhaseDetail\n- Check if sidebar and tab are differentiated\n- Any remaining issues\n- Phase 2 readiness assessment\n\nBoth reading the code AND creating the review file must happen in the same job. Commit the review file."
+}
