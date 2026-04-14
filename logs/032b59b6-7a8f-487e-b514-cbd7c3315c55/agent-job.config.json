@@ -1,0 +1,4 @@
+{
+  "title": "Update PhaseDetail status dropdown with valid transitions and lock support",
+  "job": "Edit plugins/dev-department/src/ui/components/PhaseDetail.tsx\n\nRead the existing file. Find the status dropdown that shows all PhaseStatus options.\n\nChange it so it only shows VALID transitions from the current status. Import or define the VALID_TRANSITIONS map (same as in state.ts):\n\nconst VALID_TRANSITIONS: Record<PhaseStatus, PhaseStatus[]> = {\n  DraftSpec: ['SpecApproved'],\n  SpecApproved: ['PRDAttached', 'DraftSpec'],\n  PRDAttached: ['ReadyForBuild', 'SpecApproved'],\n  ReadyForBuild: ['Accepted', 'ReworkRequired'],\n  Accepted: ['Closed'],\n  ReworkRequired: ['DraftSpec', 'PRDAttached'],\n  Closed: [],\n};\n\nThe status dropdown should show the current status plus only the valid next statuses. If freezeState is Locked, disable the status dropdown entirely with a tooltip explaining why.\n\nCommit."
+}
