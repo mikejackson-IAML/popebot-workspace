@@ -1,0 +1,4 @@
+{
+  "title": "Add freeze state enforcement to updatePhase method in state.ts",
+  "job": "Edit plugins/dev-department/src/worker/state.ts to add freeze state enforcement.\n\nRead the existing file. In the updatePhase method, add this check BEFORE the status transition check:\n\nif (existing.freezeState === 'Locked') {\n  // Only allow changing freezeState itself, not other fields\n  const nonFreezeChanges = Object.keys(data).filter(k => k !== 'freezeState');\n  if (nonFreezeChanges.length > 0) {\n    throw new Error('Phase is locked. Only freeze state can be changed.');\n  }\n}\n\nif (existing.freezeState === 'FrozenDownstream') {\n  // Allow reading but not status changes\n  if (data.status) {\n    throw new Error('Phase has frozen downstream phases. Status cannot change.');\n  }\n}\n\nCommit."
+}
