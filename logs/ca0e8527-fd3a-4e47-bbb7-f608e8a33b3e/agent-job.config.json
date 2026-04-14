@@ -1,4 +1,0 @@
-{
-  "title": "Edit PhaseDetail.tsx to add spec/PRD attachment, conversation refs, read-only phase number, delete confirm",
-  "job": "Edit plugins/dev-department/src/ui/components/PhaseDetail.tsx to add missing features.\n\nRead the existing file first. Make these changes:\n\n1. Add Attach Spec button and form: when clicked, show inputs for title and sourceRef (URL), save creates a Spec record\n2. Add Attach PRD button and form: same pattern, save creates a PRD record\n3. Import and render ConversationRefs component for this phases conversation references (scopeType=phase, scopeId=phase.id)\n4. Make phaseNumber read-only (display only, not editable input) — sortOrder controls actual ordering\n5. Add a delete confirmation: when delete is triggered, show a confirm dialog before proceeding\n\nProps should include: onAttachSpec, onAttachPRD, conversationRefs, onAddConversationRef, onUpdateConversationRef, onDeleteConversationRef callbacks.\n\nCommit."
-}
