@@ -1,4 +1,0 @@
-{
-  "title": "Review dev-department plugin files and write code review summary",
-  "job": "Read all files in plugins/dev-department/. Write a brief review summary to logs/code-review-phase1-round2.md. Include: verdict (APPROVE or REQUEST CHANGES), list of remaining issues if any, and whether the plugin is ready for Phase 2. Keep it under 50 lines. Commit the file."
-}
