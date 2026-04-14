@@ -1,149 +1,210 @@
-import { DevProject, Phase, Spec, PRD, ConversationReference, ScopeType } from "./types";
+import { DevProject, Phase, Spec, PRD, ConversationReference, ScopeType, BuildDispatch, BuildOutput, Review, RevisionEvent } from "./types";
 
 export class StateStore {
-  private store: Map<string, any> = new Map();
+  private projects: Map<string, DevProject> = new Map();
+  private phases: Map<string, Phase> = new Map();
+  private specs: Map<string, Spec> = new Map();
+  private prds: Map<string, PRD> = new Map();
+  private conversationRefs: Map<string, ConversationReference> = new Map();
+  private buildDispatches: Map<string, BuildDispatch> = new Map();
+  private buildOutputs: Map<string, BuildOutput> = new Map();
+  private reviews: Map<string, Review> = new Map();
+  private revisionEvents: Map<string, RevisionEvent> = new Map();
 
-  generateId(): string {
-    return crypto.randomUUID();
-  }
+  // Projects
 
   createProject(data: Omit<DevProject, "id" | "createdAt" | "updatedAt">): DevProject {
     const now = new Date().toISOString();
-    const project: DevProject = { id: this.generateId(), ...data, createdAt: now, updatedAt: now };
-    this.store.set(`project:${project.id}`, project);
+    const project: DevProject = { id: crypto.randomUUID(), ...data, createdAt: now, updatedAt: now };
+    this.projects.set(project.id, project);
     return project;
   }
 
   getProject(id: string): DevProject | null {
-    return this.store.get(`project:${id}`) ?? null;
+    return this.projects.get(id) ?? null;
   }
 
   updateProject(id: string, data: Partial<DevProject>): DevProject {
     const existing = this.getProject(id);
     if (!existing) throw new Error(`Project ${id} not found`);
     const updated: DevProject = { ...existing, ...data, id, updatedAt: new Date().toISOString() };
-    this.store.set(`project:${id}`, updated);
+    this.projects.set(id, updated);
     return updated;
   }
 
   deleteProject(id: string): void {
-    this.store.delete(`project:${id}`);
+    for (const phase of this.getPhasesByProject(id)) {
+      this.deletePhase(phase.id);
+    }
+    this.projects.delete(id);
   }
 
   listProjects(): DevProject[] {
-    const projects: DevProject[] = [];
-    for (const [key, val] of this.store) {
-      if (key.startsWith("project:")) projects.push(val);
-    }
-    return projects;
+    return Array.from(this.projects.values());
   }
+
+  // Phases
 
   createPhase(data: Omit<Phase, "id" | "createdAt" | "updatedAt">): Phase {
     const now = new Date().toISOString();
-    const phase: Phase = { id: this.generateId(), ...data, createdAt: now, updatedAt: now };
-    this.store.set(`phase:${phase.id}`, phase);
+    const phase: Phase = { id: crypto.randomUUID(), ...data, createdAt: now, updatedAt: now };
+    this.phases.set(phase.id, phase);
     return phase;
   }
 
   getPhase(id: string): Phase | null {
-    return this.store.get(`phase:${id}`) ?? null;
+    return this.phases.get(id) ?? null;
   }
 
   getPhasesByProject(projectId: string): Phase[] {
-    const phases: Phase[] = [];
-    for (const [key, val] of this.store) {
-      if (key.startsWith("phase:") && val.projectId === projectId) phases.push(val);
-    }
-    return phases.sort((a, b) => a.sortOrder - b.sortOrder);
+    return Array.from(this.phases.values())
+      .filter(p => p.projectId === projectId)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
   }
 
   updatePhase(id: string, data: Partial<Phase>): Phase {
     const existing = this.getPhase(id);
     if (!existing) throw new Error(`Phase ${id} not found`);
     const updated: Phase = { ...existing, ...data, id, updatedAt: new Date().toISOString() };
-    this.store.set(`phase:${id}`, updated);
+    this.phases.set(id, updated);
     return updated;
   }
 
   deletePhase(id: string): void {
-    this.store.delete(`phase:${id}`);
+    const spec = this.getSpecByPhase(id);
+    if (spec) this.specs.delete(spec.id);
+
+    const prd = this.getPRDByPhase(id);
+    if (prd) this.prds.delete(prd.id);
+
+    for (const ref of this.getConversationRefsByPhase(id)) {
+      this.conversationRefs.delete(ref.id);
+    }
+
+    this.phases.delete(id);
   }
 
   reorderPhases(projectId: string, phaseIds: string[]): void {
+    const now = new Date().toISOString();
     phaseIds.forEach((id, index) => {
       const phase = this.getPhase(id);
       if (phase && phase.projectId === projectId) {
-        this.store.set(`phase:${id}`, { ...phase, sortOrder: index, updatedAt: new Date().toISOString() });
+        this.phases.set(id, { ...phase, sortOrder: index, updatedAt: now });
       }
     });
   }
 
+  // Specs
+
   createSpec(data: Omit<Spec, "id">): Spec {
-    const spec: Spec = { id: this.generateId(), ...data };
-    this.store.set(`spec:${spec.id}`, spec);
+    const spec: Spec = { id: crypto.randomUUID(), ...data };
+    this.specs.set(spec.id, spec);
     return spec;
   }
 
   getSpecByPhase(phaseId: string): Spec | null {
-    for (const [key, val] of this.store) {
-      if (key.startsWith("spec:") && val.phaseId === phaseId) return val;
+    for (const spec of this.specs.values()) {
+      if (spec.phaseId === phaseId) return spec;
     }
     return null;
   }
 
   updateSpec(id: string, data: Partial<Spec>): Spec {
-    const existing = this.store.get(`spec:${id}`);
+    const existing = this.specs.get(id);
     if (!existing) throw new Error(`Spec ${id} not found`);
     const updated: Spec = { ...existing, ...data, id };
-    this.store.set(`spec:${id}`, updated);
+    this.specs.set(id, updated);
     return updated;
   }
 
+  deleteSpec(id: string): void {
+    this.specs.delete(id);
+  }
+
+  // PRDs
+
   createPRD(data: Omit<PRD, "id">): PRD {
-    const prd: PRD = { id: this.generateId(), ...data };
-    this.store.set(`prd:${prd.id}`, prd);
+    const prd: PRD = { id: crypto.randomUUID(), ...data };
+    this.prds.set(prd.id, prd);
     return prd;
   }
 
   getPRDByPhase(phaseId: string): PRD | null {
-    for (const [key, val] of this.store) {
-      if (key.startsWith("prd:") && val.phaseId === phaseId) return val;
+    for (const prd of this.prds.values()) {
+      if (prd.phaseId === phaseId) return prd;
     }
     return null;
   }
 
   updatePRD(id: string, data: Partial<PRD>): PRD {
-    const existing = this.store.get(`prd:${id}`);
+    const existing = this.prds.get(id);
     if (!existing) throw new Error(`PRD ${id} not found`);
     const updated: PRD = { ...existing, ...data, id };
-    this.store.set(`prd:${id}`, updated);
+    this.prds.set(id, updated);
     return updated;
   }
 
+  deletePRD(id: string): void {
+    this.prds.delete(id);
+  }
+
+  // Conversation References
+
   createConversationRef(data: Omit<ConversationReference, "id">): ConversationReference {
-    const ref: ConversationReference = { id: this.generateId(), ...data };
-    this.store.set(`convref:${ref.id}`, ref);
+    const ref: ConversationReference = { id: crypto.randomUUID(), ...data };
+    this.conversationRefs.set(ref.id, ref);
     return ref;
   }
 
   getConversationRefs(scopeType: ScopeType, scopeId: string): ConversationReference[] {
-    const refs: ConversationReference[] = [];
-    for (const [key, val] of this.store) {
-      if (key.startsWith("convref:") && val.scopeType === scopeType && val.scopeId === scopeId) refs.push(val);
-    }
-    return refs;
+    return Array.from(this.conversationRefs.values()).filter(
+      r => r.scopeType === scopeType && r.scopeId === scopeId
+    );
+  }
+
+  private getConversationRefsByPhase(phaseId: string): ConversationReference[] {
+    return this.getConversationRefs("phase", phaseId);
   }
 
   updateConversationRef(id: string, data: Partial<ConversationReference>): ConversationReference {
-    const existing = this.store.get(`convref:${id}`);
+    const existing = this.conversationRefs.get(id);
     if (!existing) throw new Error(`ConversationReference ${id} not found`);
     const updated: ConversationReference = { ...existing, ...data, id };
-    this.store.set(`convref:${id}`, updated);
+    this.conversationRefs.set(id, updated);
     return updated;
   }
 
   deleteConversationRef(id: string): void {
-    this.store.delete(`convref:${id}`);
+    this.conversationRefs.delete(id);
+  }
+
+  // Phase 2 entity stubs
+
+  getBuildDispatchByPhase(phaseId: string): BuildDispatch | null {
+    for (const dispatch of this.buildDispatches.values()) {
+      if (dispatch.phaseId === phaseId) return dispatch;
+    }
+    return null;
+  }
+
+  getBuildOutputByPhase(phaseId: string): BuildOutput | null {
+    for (const output of this.buildOutputs.values()) {
+      if (output.phaseId === phaseId) return output;
+    }
+    return null;
+  }
+
+  getReviewByPhase(phaseId: string): Review | null {
+    for (const review of this.reviews.values()) {
+      if (review.phaseId === phaseId) return review;
+    }
+    return null;
+  }
+
+  getRevisionEventsByPhase(phaseId: string): RevisionEvent[] {
+    return Array.from(this.revisionEvents.values()).filter(
+      e => e.sourcePhaseId === phaseId || e.affectedPhaseIds.includes(phaseId)
+    );
   }
 }
 
