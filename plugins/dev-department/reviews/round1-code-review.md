@@ -1,93 +1,113 @@
-The review file write was blocked. Here's the full review:
+Now I have the full picture. Let me produce the review.
 
 ---
 
-# Code Review: dev-department Plugin (Round 3)
+# Code Review: dev-department Plugin — Round 3
 
 ## Verdict: **REQUEST CHANGES**
 
-4 critical compile-time failures, 4 moderate issues. Multiple prior findings remain unfixed despite commits claiming otherwise.
+1 critical compile-time failure remains. 2 moderate issues. Most prior findings are fixed.
 
 ---
 
 ## Status of Prior Findings
 
-| Round | # | Issue | Status |
-|-------|---|-------|--------|
-| R1 | 1 | DepartmentView passes wrong props to PhaseDetail | **NOT FIXED** |
-| R1 | 2 | Default import of named export (ConversationRefs) | **PARTIALLY FIXED** — PhaseDetail.tsx still broken, DepartmentView.tsx still broken |
-| R1 | 3 | Project-scoped conversation refs not cascade-deleted | **NOT FIXED** |
-| R1 | 4 | Phase 2 entities not cascade-deleted in deletePhase | **NOT FIXED** |
-| R2 | 4 | Spec/PRD missing timestamps | **NOT FIXED** (types unchanged on disk) |
-| R2 | 7 | No delete confirmation in PhaseList | **NOT FIXED** |
-| R2 | 3 | sortOrder/phaseNumber divergence | **NOT FIXED** |
+| Round | # | Issue | Current Status |
+|-------|---|-------|----------------|
+| R1-CR | 1 | DepartmentView passes wrong props to PhaseDetail | **NOT FIXED** |
+| R1-CR | 2 | Default import of named export (ConversationRefs) | **FIXED** (both files) |
+| R1-CR | 3 | Project-scoped conversation refs not cascade-deleted | **FIXED** |
+| R1-CR | 4 | Phase 2 entities not cascade-deleted in deletePhase | **FIXED** |
+| R1-DA | 3 | sortOrder/phaseNumber divergence | Not fixed (accepted as known limitation) |
+| R1-DA | 4 | Spec/PRD missing timestamps | **FIXED** (types + state.ts) |
+| R1-DA | 7 | No delete confirmation in PhaseList | Not fixed (PhaseList still has bare `x`) |
+| R2-CR | 3 | index.tsx uses named import of default export | **NOT FIXED** |
+| R2-DA | 2 | BuildOutput missing FK to BuildDispatch | **FIXED** (`buildDispatchId` added) |
 
 ---
 
-## Critical Issues (compile-time failures)
+## Critical Issues
 
-### 1. DepartmentView passes incomplete props to PhaseDetail
-`DepartmentView.tsx:162-168`
+### 1. DepartmentView passes incomplete props to PhaseDetail — compile failure
 
-PhaseDetail requires 12 props (`PhaseDetail.tsx:101-113`). DepartmentView passes only 5. **Missing:** `conversationRefs`, `onAttachSpec`, `onAttachPRD`, `onAddConversationRef`, `onUpdateConversationRef`, `onDeleteConversationRef`. This is a TS compile error.
+`DepartmentView.tsx:113-119` — `PhaseDetail` is rendered with 5 props:
 
-### 2. Default import of named export — ConversationRefs in DepartmentView
-`DepartmentView.tsx:6` — `import ConversationRefs from "./ConversationRefs"` but `ConversationRefs.tsx` only has `export function ConversationRefs` (named). Should be `import { ConversationRefs }`.
+```tsx
+<PhaseDetail
+  phase={selectedPhase}
+  spec={null}
+  prd={null}
+  onSave={handleSavePhase}
+  onCancel={() => setSelectedPhase(null)}
+/>
+```
 
-### 3. Named import of default export — DepartmentView in index.tsx
-`index.tsx:2` — `import { DepartmentView } from './components/DepartmentView'` but `DepartmentView.tsx` uses `export default function DepartmentView`. Should be `import DepartmentView from`.
+But `PhaseDetailProps` (at `PhaseDetail.tsx:94-106`) requires 12 props. **Missing required props:**
+- `conversationRefs` — no default, will be `undefined` and passed to `ConversationRefs` child
+- `onAttachSpec` — no default
+- `onAttachPRD` — no default
+- `onAddConversationRef` — no default
+- `onUpdateConversationRef` — no default
+- `onDeleteConversationRef` — no default
 
-### 4. Default import of named export — ConversationRefs in PhaseDetail
-`PhaseDetail.tsx:3` — Same bug as #2. Despite PR #35 claiming to fix this, on-disk file still has `import ConversationRefs from "./ConversationRefs"`.
+This is a TypeScript compile error under `strict: true`. The component will also crash at runtime when it tries to call `onAttachSpec(...)`.
+
+**Fix:** Add handlers to `DepartmentView` for spec/PRD attachment and phase-scoped conversation refs, and pass all required props. Alternatively, make the missing props optional in `PhaseDetailProps` if the features are intentionally stubbed out — but that pushes the null-check burden into `PhaseDetail`.
+
+### 2. index.tsx uses named import of default export — compile failure
+
+`src/ui/index.tsx:2`:
+```tsx
+import { DepartmentView } from './components/DepartmentView';
+```
+
+But `DepartmentView.tsx` uses `export default function DepartmentView`. A named import `{ DepartmentView }` will resolve to `undefined`.
+
+**Fix:** Change to `import DepartmentView from './components/DepartmentView'`.
 
 ---
 
 ## Moderate Issues
 
-### 5. Cascade delete: project-scoped conversation refs orphaned
-`state.ts:35-39` — `deleteProject` cascades into `deletePhase` (which only cleans phase-scoped refs). Refs with `scopeType === "project"` are never deleted.
+### 3. PhaseList delete has no confirmation — inconsistent with PhaseDetail
 
-### 6. Cascade delete: Phase 2 entities not cleaned in deletePhase
-`state.ts:73-85` — `deletePhase` misses `buildDispatches`, `buildOutputs`, `reviews`, `revisionEvents`.
+`PhaseList.tsx:184-196` — The `x` button calls `onDelete(phase.id)` immediately with no confirmation step. Compare with `PhaseDetail.tsx` which has a proper two-step confirmation (`showDeleteConfirm` state at line 105, confirm UI at lines 256-287). A misclick on the `x` cascades through specs, PRDs, conversation refs, and Phase 2 entities.
 
-### 7. Spec and PRD interfaces still lack timestamps
-`types.ts:16-17` — No `createdAt`/`updatedAt` fields. `state.ts:99-103,126-130` (`createSpec`/`createPRD`) don't generate timestamps either.
-
-### 8. PhaseList delete has no confirmation
-`PhaseList.tsx:218-232` — Bare `x` button calls `onDelete` immediately. Compare with PhaseDetail's proper two-step confirmation at `PhaseDetail.tsx:305-350`.
+**Fix:** Add a confirmation step (inline confirm/cancel or `window.confirm`) before calling `onDelete`.
 
 ---
 
-## Minor Issues
+## Minor Issues (informational, not blocking)
 
-### 9. useEffect dependency incomplete
-`PhaseDetail.tsx:138-141` — `useEffect` depends on `[phase.id]` but reads full `phase` object. Won't reset draft if phase fields change without id change.
+### 4. Redundant `as` casts in ConversationRefs
 
-### 10. sortOrder/phaseNumber divergence after reorder
-`DepartmentView.tsx:104-117` — `handleReorderPhase` swaps `sortOrder` but never updates `phaseNumber`. Circle badge shows stale creation-time numbers.
+`ConversationRefs.tsx:107-110` — `r.system as ConversationSystem` and `r.role as ConversationRole` are unnecessary since `r` is already typed as `ConversationReference`. Also present at lines 148-149, 180-181. Noise, not a bug.
+
+### 5. useEffect dependency on `phase.id` only
+
+`PhaseDetail.tsx:109` — `useEffect(() => { setDraft({...phase}); }, [phase.id])` won't re-sync the draft if the phase object changes without the id changing (e.g., after a save updates `updatedAt`). Should depend on `[phase]` or `[phase.id, phase.updatedAt]`.
+
+### 6. `ConversationReference.status` field is write-once/never-editable
+
+`ConversationRefs.tsx` hardcodes `status: "active"` on add (line 236). The `EditingState` interface (line 97) omits `status`, so edits can never transition a ref to `"reference"` or `"archived"`. Not blocking for Phase 1 but the field accumulates meaningless data.
 
 ---
 
 ## What's Working Well
 
-- No `any` types. All Maps, props, state properly typed with union types.
-- Plugin manifest (`paperclip-plugin.json`) is valid — correct `apiVersion`, slots, capabilities, entrypoints.
-- Phase 2 stub types and placeholder UI sections are in place.
-- PhaseDetail delete confirmation is properly two-step.
+- **No `any` types.** All Maps, props, state, and function signatures are properly typed with union types and generics.
+- **Plugin manifest is valid.** `paperclip-plugin.json` has correct `apiVersion`, slots, capabilities, entrypoints, and `exportName` values that match actual exports.
+- **Cascade deletes are comprehensive.** `deleteProject` now cleans project-scoped refs, `deletePhase` cascades to specs, PRDs, conversation refs, and all Phase 2 entities.
+- **Timestamps are in place.** Spec and PRD now have `createdAt`/`updatedAt` in both the type definitions and the StateStore methods.
+- **`BuildOutput.buildDispatchId` FK added** — build provenance is now traceable.
+- **Phase 2 readiness is solid.** Stub types, getter methods, cascade deletes, and placeholder UI sections are all in place.
 
 ---
 
-## Required Changes
+## Required Changes Summary
 
 | # | Severity | File:Line | Fix |
 |---|----------|-----------|-----|
-| 1 | **Critical** | `DepartmentView.tsx:162-168` | Pass all 12 required props to PhaseDetail |
-| 2 | **Critical** | `DepartmentView.tsx:6` | `import { ConversationRefs }` (named) |
-| 3 | **Critical** | `index.tsx:2` | `import DepartmentView from` (default) |
-| 4 | **Critical** | `PhaseDetail.tsx:3` | `import { ConversationRefs }` (named) |
-| 5 | Moderate | `state.ts:35-39` | Cascade-delete project-scoped conversation refs |
-| 6 | Moderate | `state.ts:73-85` | Cascade-delete Phase 2 entities in deletePhase |
-| 7 | Moderate | `types.ts:16-17` | Add `createdAt`/`updatedAt` to Spec and PRD |
-| 8 | Moderate | `PhaseList.tsx:218-232` | Add delete confirmation |
-
-**Note:** Commits #33-39 claim to fix several of these issues, but on-disk files at HEAD (`5a60cf3`) do not reflect the changes. All findings are based on actual file contents.
+| 1 | **Critical** | `DepartmentView.tsx:113-119` | Pass all 12 required props to `PhaseDetail` |
+| 2 | **Critical** | `src/ui/index.tsx:2` | Change to default import: `import DepartmentView from` |
+| 3 | Moderate | `PhaseList.tsx:184-196` | Add delete confirmation before calling `onDelete` |
