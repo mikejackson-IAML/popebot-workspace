@@ -78,19 +78,31 @@ export default function DepartmentView() {
   };
 
   const handleReorderPhase = (phaseId: string, direction: "up" | "down") => {
+    if (!selectedProject) return;
     const sorted = [...phases].sort((a, b) => a.sortOrder - b.sortOrder);
     const idx = sorted.findIndex((p) => p.id === phaseId);
     if (idx === -1) return;
     const swapIdx = direction === "up" ? idx - 1 : idx + 1;
     if (swapIdx < 0 || swapIdx >= sorted.length) return;
-    const a = sorted[idx];
-    const b = sorted[swapIdx];
-    const updatedA = { ...a, sortOrder: b.sortOrder };
-    const updatedB = { ...b, sortOrder: a.sortOrder };
-    setPhases((prev) =>
-      prev.map((p) => (p.id === updatedA.id ? updatedA : p.id === updatedB.id ? updatedB : p))
-    );
+    const reordered = [...sorted];
+    [reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]];
+    store.reorderPhases(selectedProject.id, reordered.map(p => p.id));
+    setPhases(store.getPhasesByProject(selectedProject.id));
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   const handleSavePhase = (updates: Partial<Phase>) => {
     if (!selectedPhase || !selectedProject) return;
@@ -102,6 +114,9 @@ export default function DepartmentView() {
       alert(err instanceof Error ? err.message : String(err));
     }
   };
+
+  const handleSetActivePhase = (phaseId: string | null) => {
+    handleSaveProject({ activePhaseId: phaseId });
   };
 
   const handleAddRef = (ref: Omit<ConversationReference, "id">) => {
