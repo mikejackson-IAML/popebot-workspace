@@ -2,41 +2,85 @@ The review is ready but needs write permission. Here's the full review:
 
 ---
 
-# Devil's Advocate Review: dev-department Plugin (Round 4)
+# Devil's Advocate Review: dev-department Plugin (Round 5)
 
 **Verdict: CONCERNS**
 
-The Code Reviewer correctly identified the two remaining compile-time failures (wrong props, wrong import) and the missing delete confirmation. Those are mechanical fixes. What they continue to miss — across four rounds — are structural issues that cost more to fix the longer they're deferred.
-
-Scoped to Phase 1 (data model, CRUD, basic UI). Not re-raising anything marked FIXED or covered in prior DA reviews.
+The Code Reviewer found the remaining compile blocker (`useState` not imported). That's correct and must be fixed. What follows is everything else they missed.
 
 ---
 
-## Findings the Code Reviewer Did Not Cover
+## Status of Prior DA Findings
 
-### 1. Spec/PRD attach form shape is incomplete at the interface boundary
+| Round | # | Issue | Status |
+|-------|---|-------|--------|
+| R2-DA | 1 | No data path between UI and worker | Still present — **NOTE for Phase 2** |
+| R2-DA | 2 | No state machine enforcement | Still present — **NOTE for Phase 3** |
+| R2-DA | 3 | sortOrder/phaseNumber diverge after reorder | **OPEN** |
+| R2-DA | 4 | Spec/PRD have no timestamps | **FIXED** |
+| R2-DA | 5 | No spec/PRD version history | **NOTE for Phase 2** |
+| R2-DA | 6 | Linear scans on phase-scoped lookups | **NOTE for Phase 2** |
+| R2-DA | 7 | No confirmation on PhaseList delete | **FIXED** |
+| R2-DA | 8 | No API version degradation path | Low risk for Phase 1 |
+| R2-DA | 9 | RevisionEvent orphaned IDs | **NOTE for Phase 2** |
+| R4-DA | 1 | Attach form shape incomplete | **OPEN** |
+| R4-DA | 2 | ProjectHeader never re-syncs from props | **OPEN** |
+| R4-DA | 3 | Phase delete orphans UI conversation refs | **OPEN** |
+| R4-DA | 4 | Stale closure in save handlers | **NOTE for Phase 2** |
+| R4-DA | 5 | hasSpec/hasPRD never passed to PhaseList | **OPEN** |
+| R4-DA | 6 | RefRow delete no confirmation | **OPEN** |
 
-`PhaseDetail.handleAttachSpec` passes `{ title, sourceRef }` via the `AttachForm` type, but constructing a valid `Spec` requires `phaseId`, `version`, `author`, `approvalState`, `notes`. Whoever wires this up in DepartmentView must either hardcode defaults (making those fields dead weight) or expand the form (UI change). The data shape at the callback boundary doesn't match what the data model needs.
+---
 
-### 2. `ProjectHeader` local state diverges from parent on external save
+## New Findings the Code Reviewer Did Not Cover
 
-`ProjectHeader` initializes `useState` from props but has **no `useEffect`** to re-sync when the parent updates. Scenario: edit project name to "Foo" (unsaved), select an active phase from the dropdown (calls `handleSaveProject({ activePhaseId })`), ProjectHeader re-renders with new `project` prop but local `name` state still shows "Foo". User thinks it saved. It didn't. Same class of bug the Code Reviewer flagged in PhaseDetail (#5) but missed here where there's no reset mechanism at all.
+### 1. `handleDeletePhase` triggers `handleSaveProject` which reads stale `selectedProject`
 
-### 3. Phase delete doesn't clean conversation refs from UI state
+`DepartmentView.tsx:95-98` — When deleting the active phase:
 
-`DepartmentView.handleDeletePhase` filters `phases` state but doesn't touch `conversationRefs` state. `StateStore.deletePhase` cascades correctly on the worker side, but the UI doesn't use the worker. Orphaned refs accumulate in React state.
+```tsx
+if (selectedProject?.activePhaseId === phaseId) {
+  handleSaveProject({ activePhaseId: null });
+}
+```
 
-### 4. `handleSavePhase`/`handleSaveProject` use stale closure — last-write-wins
+`handleSaveProject` spreads over the captured `selectedProject`:
 
-Both spread over the captured `selectedPhase`/`selectedProject` rather than using a functional updater. Two rapid saves will lose the first. Phase 2 introduces automated status transitions that will trigger this.
+```tsx
+const updated = { ...selectedProject, ...updates, updatedAt: new Date().toISOString() };
+```
 
-### 5. `hasSpec`/`hasPRD` never passed to PhaseList — badges are dead UI
+This is a closure over `selectedProject` from the current render. If the user edited ProjectHeader fields (name, objective, status) but hasn't saved yet, `handleSaveProject` overwrites `projects` state with the *stale* `selectedProject` — discarding any pending ProjectHeader edits. `setSelectedProject(updated)` cements the stale version.
 
-`PhaseList` accepts optional `hasSpec`/`hasPRD` props (default `{}`). `DepartmentView` never passes them. Spec/PRD badges will never render in the list view even after specs are wirable.
+Interaction path: edit project name → add phases → delete the active phase → project name reverts silently.
 
-### 6. `RefRow` delete has no confirmation — same class as CR #3
+**Severity:** Medium. Phase 1 data loss within a session.
 
-Code Reviewer flagged PhaseList's bare delete. `ConversationRefs.tsx` RefRow has the identical pattern: "Delete" button calls `onDelete(r.id)` immediately.
+### 2. `handleAttachSpec` / `handleAttachPRD` are no-ops that silently eat user input
+
+`DepartmentView.tsx:126-132` — The user fills in the form, clicks "Save Spec", the form closes, and nothing happens. No spec appears. No feedback. PhaseDetail shows "No spec attached" immediately after.
+
+The Code Reviewer noted the form shape is incomplete (Phase 2 note) but didn't flag that the *current* UX is actively misleading. Either disable the buttons with a "Coming soon" tooltip or show feedback when the stub is hit.
+
+**Severity:** Low (UX). An operator will file this as a bug within minutes.
+
+### 3. Project delete is not implemented — no way to remove a project
+
+`DepartmentView` has Create and Save but no Delete for projects. The project list has no delete control. `StateStore.deleteProject` exists on the worker side but is unreachable from UI. For Phase 1 CRUD, the "D" is missing for the top-level entity.
+
+**Severity:** Low. Incomplete CRUD surface.
+
+### 4. `owner` and `roadmapSummary` fields on `DevProject` are unreachable from UI
+
+`ProjectHeader` only exposes `name`, `objective`, and `status`. `handleCreateProject` hardcodes `owner: ""` and `roadmapSummary: ""`. No UI path to set or view these fields. If `owner` is load-bearing for Phase 2 (e.g., approval authority), it'll need UI. If not, they're dead weight.
+
+**Severity:** Low. No migration risk — already in the type.
+
+### 5. `ConversationReference` URL validation is protocol-only with silent failure
+
+`ConversationRefs.tsx:258-259` — Accepts `https://` (empty after protocol), rejects `claude.ai/chat/...` (missing protocol) with no error message. `handleAdd` silently returns. The user clicks Add, nothing happens, no feedback.
+
+**Severity:** Low. UX friction.
 
 ---
 
@@ -44,17 +88,18 @@ Code Reviewer flagged PhaseList's bare delete. `ConversationRefs.tsx` RefRow has
 
 | # | Risk | Area | Phase Scope |
 |---|------|------|-------------|
-| 1 | Medium | Attach form shape incomplete | Phase 1 — data model gap |
-| 2 | Medium | ProjectHeader never re-syncs | Phase 1 — state bug |
-| 3 | Low | Phase delete orphans UI refs | Phase 1 — orphan state |
-| 4 | Low | Stale closure in save handlers | NOTE for Phase 2 |
-| 5 | Low | hasSpec/hasPRD never passed | Phase 1 — dead feature |
-| 6 | Low | RefRow delete no confirmation | Phase 1 — UX consistency |
+| 1 | **Medium** | Stale closure overwrites project on active-phase delete | Phase 1 — session data loss |
+| 2 | Low | Attach Spec/PRD stubs silently eat input | Phase 1 — misleading UX |
+| 3 | Low | No project delete in UI | Phase 1 — incomplete CRUD |
+| 4 | Low | owner/roadmapSummary unreachable from UI | Phase 1 — dead fields |
+| 5 | Low | URL validation silent failure | Phase 1 — UX friction |
 
-None are compile-time blockers. The Code Reviewer's two critical findings (wrong props, wrong import) remain the actual blockers.
+No new compile-time blockers beyond the Code Reviewer's `useState` finding.
 
 ---
 
 ## If I had to bet on what breaks next phase, it would be...
 
-**The ProjectHeader state divergence (#2) combined with the stale-closure save pattern (#4) producing silent data loss blamed on the persistence layer.** Phase 2 wires up persistence. Operator edits project name in ProjectHeader, then selects an active phase from the dropdown (triggering `handleSaveProject`). Persistence saves the project with the *old* name because ProjectHeader's local state didn't feed into the activePhaseId save. Operator sees "Foo" on screen, database has "New Project". Reload reverts it. Team spends a day investigating the plugin state API before discovering it's a React state bug that's been there since Phase 1. Fix: add `useEffect` to ProjectHeader (same pattern PhaseDetail uses), and switch save handlers to functional state updates.
+**The stale closure pattern (#1, plus R4-DA #4) turning into a class of bugs that are hard to diagnose once persistence is wired.** Right now every save handler does `{ ...selectedProject, ...updates }` — spreading over a captured snapshot from render time, not current state. In Phase 1 this mostly works because there's one user, one tab, no async, and refresh resets everything. Phase 2 adds persistence: now `handleSaveProject({ activePhaseId })` writes stale `name`/`objective`/`status` to the plugin state API, overwriting what `ProjectHeader.handleSave` wrote moments before. The operator sees their project name revert after selecting an active phase. The debugging session goes: "is it the plugin state API? the worker? the store?" — no, it's a React closure bug that's been here since Phase 1.
+
+The fix is mechanical: switch `handleSaveProject` to use a functional updater (`setProjects(prev => prev.map(...))`) and derive `selectedProject` from `projects` state rather than maintaining it as independent state. Same for `handleSavePhase`. Do it before Phase 2 wires persistence, or it becomes a race condition instead of just a stale read.
