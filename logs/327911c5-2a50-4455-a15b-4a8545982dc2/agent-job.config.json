@@ -1,4 +1,0 @@
-{
-  "title": "Add createdAt and updatedAt audit fields to Spec and PRD interfaces",
-  "job": "Edit plugins/dev-department/src/worker/types.ts\n\nRead the file. Add createdAt and updatedAt fields to Spec and PRD interfaces:\n\nFor Spec, add after the notes field:\n  createdAt: string;\n  updatedAt: string;\n\nFor PRD, add after the notes field:\n  createdAt: string;\n  updatedAt: string;\n\nThis enables audit trail for Phase 2. Commit."
-}
