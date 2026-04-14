@@ -1,4 +1,0 @@
-{
-  "title": "Fix duplicate UI slots by replacing identical components with distinct ones",
-  "job": "Edit plugins/dev-department/src/ui/index.tsx to fix the critical issue where both UI slots render identical components.\n\nReplace the current content with:\n\nimport React from 'react';\nimport { DepartmentView } from './components/DepartmentView';\n\n// projectSidebarItem slot — compact view showing active project summary\nexport function DepartmentSidebar() {\n  return (\n    <div style={{ padding: '8px', fontSize: '14px' }}>\n      <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>Dev Department</div>\n      <div style={{ color: '#666', fontSize: '12px' }}>Click Phases tab for full view</div>\n    </div>\n  );\n}\n\n// detailTab slot — full department view with project management\nexport function PhasesTab() {\n  return <DepartmentView />;\n}\n\nCommit."
-}
