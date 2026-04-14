@@ -1,4 +1,3 @@
-import React from "react";
 import type { Phase, PhaseStatus, FreezeState } from "../../worker/types";
 
 const PHASE_STATUS_COLORS: Record<PhaseStatus, { bg: string; text: string }> = {
@@ -216,7 +215,11 @@ export default function PhaseList({
                     ▼
                   </button>
                   <button
-                    onClick={() => onDelete(phase.id)}
+                    onClick={() => {
+                      if (window.confirm(`Delete phase "${phase.title || "Untitled Phase"}"? This will also remove its specs, PRDs, and conversation references.`)) {
+                        onDelete(phase.id);
+                      }
+                    }}
                     title="Delete phase"
                     style={{
                       background: "none",

@@ -1,4 +1,3 @@
-import React, { useState } from "react";
 import type { DevProject, Phase, ProjectStatus, ConversationReference } from "../../worker/types";
 import ProjectHeader from "./ProjectHeader";
 import PhaseList from "./PhaseList";
@@ -140,8 +139,20 @@ export default function DepartmentView() {
     setConversationRefs((prev) => prev.filter((r) => r.id !== id));
   };
 
+  const handleAttachSpec = (_data: { title: string; sourceRef: string }) => {
+    // Stub: spec persistence will be wired in Phase 2
+  };
+
+  const handleAttachPRD = (_data: { title: string; sourceRef: string }) => {
+    // Stub: PRD persistence will be wired in Phase 2
+  };
+
   // Phase detail view
   if (selectedProject && selectedPhase) {
+    const phaseRefs = conversationRefs.filter(
+      (r) => r.scopeType === "phase" && r.scopeId === selectedPhase.id
+    );
+
     return (
       <div style={{ fontFamily: "system-ui, sans-serif", height: "100%" }}>
         <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", display: "flex", gap: "8px", alignItems: "center" }}>
@@ -163,8 +174,14 @@ export default function DepartmentView() {
           phase={selectedPhase}
           spec={null}
           prd={null}
+          conversationRefs={phaseRefs}
           onSave={handleSavePhase}
           onCancel={() => setSelectedPhase(null)}
+          onAttachSpec={handleAttachSpec}
+          onAttachPRD={handleAttachPRD}
+          onAddConversationRef={handleAddRef}
+          onUpdateConversationRef={handleUpdateRef}
+          onDeleteConversationRef={handleDeleteRef}
         />
       </div>
     );

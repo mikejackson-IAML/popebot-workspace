@@ -1,5 +1,4 @@
-import React from 'react';
-import { DepartmentView } from './components/DepartmentView';
+import DepartmentView from './components/DepartmentView';
 
 // projectSidebarItem slot — compact view showing active project summary
 export function DepartmentSidebar() {
