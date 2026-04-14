@@ -1,10 +1,10 @@
 The write permission was blocked. Could you approve the write so I can save the review file?
 
-In the meantime, here's the full review:
+Here's the verdict:
 
 ---
 
-# Devil's Advocate Review: dev-department Plugin — Phase 2 Scope
+# Devil's Advocate Review: dev-department Plugin — Round 1 (Phase 3 Scope)
 
 **Verdict: PASS**
 
@@ -14,47 +14,19 @@ The Code Reviewer approved with no blockers. Correct call. No compile errors, no
 
 ## Prior Findings Status
 
-All Round 2 critical issues (wrong props, bad imports, missing cascades) marked FIXED — confirmed. Round 1 DA findings (#1-#5) remain as low/medium-severity state management issues — none are compile errors or migration-forcing.
+All Round 2 critical issues (wrong props #1, bad imports #2, missing cascades #3/#4) confirmed **FIXED**.
 
 ---
 
-## What the Code Reviewer Did Not Cover
+## Additional Observations (None Rise to BLOCK)
 
-### 1. `handleDeletePhase` in UI still does not clean up `conversationRefs` state
+| # | Severity | Blocker? | Note |
+|---|----------|----------|------|
+| 1 | Low | No | NOTE for Phase 3 — `Review` type lacks `reviewerId`; adding it later is additive, not breaking |
+| 2 | Low | No | NOTE for Phase 3 — `deletePhase` still only cascades `RevisionEvent` by `sourcePhaseId`, leaving orphaned `affectedPhaseIds` |
+| 3 | Info | No | Phase 3 implementation guidance — no valid-transition map exists yet for status state machine |
+| 4 | Info | No | Phase 3 implementation guidance — `FreezeState` and `PhaseStatus` have no defined interaction rules yet |
 
-`DepartmentView.tsx:93` — removes the phase from `phases` but leaves orphaned phase-scoped refs in `conversationRefs`. Flagged in Round 1 DA, still present. Not a compile error — refs silently accumulate as garbage.
-
-**NOTE for Phase 2:** When persistence is wired, orphaned refs will persist unless the UI-side delete mirrors the worker-side cascade.
-
-### 2. `handleAttachSpec` / `handleAttachPRD` are no-ops
-
-`DepartmentView.tsx:141-146` — both stubs do nothing. User fills in the form, clicks save, data vanishes. Not a compile error — stubs are correctly typed.
-
-**NOTE for Phase 2:** Wire these or remove the UI forms to avoid user confusion.
-
-### 3. ProjectHeader state divergence persists
-
-`ProjectHeader.tsx:25-27` — `useState` from props with no `useEffect` resync. Edit name in header -> select active phase -> `handleSetActivePhase` persists with old name -> header save persists without `activePhaseId`. Two writes, each missing the other's data.
-
-**NOTE for Phase 2:** Fix before persistence integration. Functional updaters + `useEffect` resync on `[project]`.
-
-### 4. `RevisionEvent` cascade deletes by `sourcePhaseId` only
-
-`state.ts:80` — `deletePhase` cascades where `e.sourcePhaseId === id` but not where the deleted phase appears in `e.affectedPhaseIds`. Orphaned IDs remain.
-
-**NOTE for Phase 2:** Filter or clean on delete before revision event UI renders.
-
----
-
-## Summary
-
-| # | Severity | Blocker? | Phase |
-|---|----------|----------|-------|
-| 1 | Low | No | NOTE for Phase 2 |
-| 2 | Low | No | NOTE for Phase 2 |
-| 3 | Medium | No | NOTE for Phase 2 |
-| 4 | Low | No | NOTE for Phase 2 |
-
-No compile-time errors missed. No data model shapes requiring breaking migration. All findings are state management hygiene for Phase 2.
+No compile errors missed. No data model shapes requiring breaking migration. All Phase 3 deliverables can be built on the current foundation without structural changes.
 
 **PASS.**
