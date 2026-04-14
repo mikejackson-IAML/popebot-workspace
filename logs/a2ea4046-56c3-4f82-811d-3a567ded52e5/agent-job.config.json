@@ -1,0 +1,4 @@
+{
+  "title": "Edit ConversationRefs.tsx to fix errors and improve type safety",
+  "job": "Edit plugins/dev-department/src/ui/components/ConversationRefs.tsx to fix errors.\n\nRead the existing file first. Make these changes:\n\n1. In the RefRow component, rename the prop from ref to conversationRef (ref is reserved in React)\n2. Remove the local type re-declarations for ConversationSystem and ConversationRole — import them from ../../worker/types instead\n3. Change scopeType prop type from string to ScopeType (import from ../../worker/types)\n4. Change the hardcoded id='auth-add' on the checkbox to use a dynamic id: id={auth-add-scopeId}\n5. Add URL validation in handleAdd: reject URLs that dont start with https:// or http://\n\nCommit."
+}
