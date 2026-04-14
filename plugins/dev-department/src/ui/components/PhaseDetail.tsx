@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import type { Phase, Spec, PRD, PhaseStatus, FreezeState } from "../../worker/types";
+import type { Phase, Spec, PRD, PhaseStatus, FreezeState, ConversationReference } from "../../worker/types";
+import ConversationRefs from "./ConversationRefs";
 
 const PHASE_STATUS_OPTIONS: { value: PhaseStatus; label: string }[] = [
   { value: "DraftSpec",                label: "Draft Spec" },
@@ -81,17 +82,58 @@ const GRAYED_BLOCK: React.CSSProperties = {
   fontStyle: "italic",
 };
 
+const BTN_SECONDARY: React.CSSProperties = {
+  padding: "5px 12px",
+  backgroundColor: "#f3f4f6",
+  color: "#374151",
+  border: "1px solid #d1d5db",
+  borderRadius: "6px",
+  cursor: "pointer",
+  fontSize: "12px",
+  fontWeight: 500,
+};
+
+interface AttachForm {
+  title: string;
+  sourceRef: string;
+}
+
 interface PhaseDetailProps {
   phase: Phase;
   spec: Spec | null;
   prd: PRD | null;
+  conversationRefs: ConversationReference[];
   onSave: (updates: Partial<Phase>) => void;
   onCancel: () => void;
+  onDelete?: () => void;
+  onAttachSpec: (data: { title: string; sourceRef: string }) => void;
+  onAttachPRD: (data: { title: string; sourceRef: string }) => void;
+  onAddConversationRef: (ref: Omit<ConversationReference, "id">) => void;
+  onUpdateConversationRef: (id: string, updates: Partial<ConversationReference>) => void;
+  onDeleteConversationRef: (id: string) => void;
 }
 
-export default function PhaseDetail({ phase, spec, prd, onSave, onCancel }: PhaseDetailProps) {
+export default function PhaseDetail({
+  phase,
+  spec,
+  prd,
+  conversationRefs,
+  onSave,
+  onCancel,
+  onDelete,
+  onAttachSpec,
+  onAttachPRD,
+  onAddConversationRef,
+  onUpdateConversationRef,
+  onDeleteConversationRef,
+}: PhaseDetailProps) {
   const [draft, setDraft] = useState<Phase>({ ...phase });
   const [dirty, setDirty] = useState(false);
+  const [showSpecForm, setShowSpecForm] = useState(false);
+  const [showPRDForm, setShowPRDForm] = useState(false);
+  const [specForm, setSpecForm] = useState<AttachForm>({ title: "", sourceRef: "" });
+  const [prdForm, setPrdForm] = useState<AttachForm>({ title: "", sourceRef: "" });
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     setDraft({ ...phase });
@@ -108,18 +150,34 @@ export default function PhaseDetail({ phase, spec, prd, onSave, onCancel }: Phas
     setDirty(false);
   }
 
+  function handleAttachSpec() {
+    onAttachSpec(specForm);
+    setSpecForm({ title: "", sourceRef: "" });
+    setShowSpecForm(false);
+  }
+
+  function handleAttachPRD() {
+    onAttachPRD(prdForm);
+    setPrdForm({ title: "", sourceRef: "" });
+    setShowPRDForm(false);
+  }
+
+  function handleDeleteConfirmed() {
+    setShowDeleteConfirm(false);
+    onDelete?.();
+  }
+
   return (
     <div style={{ fontFamily: "system-ui, sans-serif", padding: "16px" }}>
-      {/* Editable fields */}
+      {/* Phase Number — read-only display */}
       <div style={FIELD_STYLE}>
         <label style={LABEL_STYLE}>Phase Number</label>
-        <input
-          type="number"
-          min={1}
-          value={draft.phaseNumber}
-          onChange={(e) => update("phaseNumber", Number(e.target.value))}
-          style={{ ...INPUT_STYLE, width: "80px" }}
-        />
+        <div style={{ ...READONLY_BLOCK, display: "inline-block", minWidth: "48px", textAlign: "center" }}>
+          {phase.phaseNumber}
+        </div>
+        <div style={{ marginTop: "4px", fontSize: "11px", color: "#9ca3af" }}>
+          Ordering is controlled by Sort Order
+        </div>
       </div>
 
       <div style={FIELD_STYLE}>
@@ -211,8 +269,8 @@ export default function PhaseDetail({ phase, spec, prd, onSave, onCancel }: Phas
         />
       </div>
 
-      {/* Save / Cancel */}
-      <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+      {/* Save / Cancel / Delete */}
+      <div style={{ display: "flex", gap: "8px", marginTop: "4px", alignItems: "center" }}>
         <button
           onClick={handleSave}
           disabled={!dirty}
@@ -244,10 +302,110 @@ export default function PhaseDetail({ phase, spec, prd, onSave, onCancel }: Phas
         >
           Cancel
         </button>
+        {onDelete && !showDeleteConfirm && (
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            style={{
+              marginLeft: "auto",
+              padding: "7px 14px",
+              backgroundColor: "#fff",
+              color: "#dc2626",
+              border: "1px solid #fca5a5",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "13px",
+              fontWeight: 500,
+            }}
+          >
+            Delete Phase
+          </button>
+        )}
+        {onDelete && showDeleteConfirm && (
+          <div style={{ marginLeft: "auto", display: "flex", gap: "6px", alignItems: "center" }}>
+            <span style={{ fontSize: "13px", color: "#dc2626", fontWeight: 500 }}>
+              Delete this phase?
+            </span>
+            <button
+              onClick={handleDeleteConfirmed}
+              style={{
+                padding: "5px 12px",
+                backgroundColor: "#dc2626",
+                color: "#fff",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "13px",
+                fontWeight: 500,
+              }}
+            >
+              Confirm
+            </button>
+            <button
+              onClick={() => setShowDeleteConfirm(false)}
+              style={BTN_SECONDARY}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Linked Spec (read-only) */}
-      <div style={SECTION_HEADING}>Spec</div>
+      {/* Linked Spec */}
+      <div style={{ ...SECTION_HEADING, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span>Spec</span>
+        {!spec && !showSpecForm && (
+          <button onClick={() => setShowSpecForm(true)} style={BTN_SECONDARY}>
+            + Attach Spec
+          </button>
+        )}
+      </div>
+
+      {showSpecForm && (
+        <div style={{ marginBottom: "12px", padding: "12px", border: "1px solid #d1d5db", borderRadius: "6px", backgroundColor: "#f9fafb" }}>
+          <div style={FIELD_STYLE}>
+            <label style={LABEL_STYLE}>Title</label>
+            <input
+              type="text"
+              value={specForm.title}
+              onChange={(e) => setSpecForm((f) => ({ ...f, title: e.target.value }))}
+              placeholder="Spec title"
+              style={INPUT_STYLE}
+            />
+          </div>
+          <div style={FIELD_STYLE}>
+            <label style={LABEL_STYLE}>Source URL</label>
+            <input
+              type="url"
+              value={specForm.sourceRef}
+              onChange={(e) => setSpecForm((f) => ({ ...f, sourceRef: e.target.value }))}
+              placeholder="https://..."
+              style={INPUT_STYLE}
+            />
+          </div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              onClick={handleAttachSpec}
+              disabled={!specForm.title.trim()}
+              style={{
+                padding: "5px 14px",
+                backgroundColor: specForm.title.trim() ? "#2563eb" : "#93c5fd",
+                color: "#fff",
+                border: "none",
+                borderRadius: "6px",
+                cursor: specForm.title.trim() ? "pointer" : "default",
+                fontSize: "13px",
+                fontWeight: 500,
+              }}
+            >
+              Save Spec
+            </button>
+            <button onClick={() => { setShowSpecForm(false); setSpecForm({ title: "", sourceRef: "" }); }} style={BTN_SECONDARY}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {spec ? (
         <div style={READONLY_BLOCK}>
           <div style={{ fontWeight: 600, color: "#111827", marginBottom: "4px" }}>
@@ -268,12 +426,66 @@ export default function PhaseDetail({ phase, spec, prd, onSave, onCancel }: Phas
             <div style={{ marginTop: "6px", fontSize: "12px", color: "#6b7280" }}>{spec.notes}</div>
           )}
         </div>
-      ) : (
+      ) : !showSpecForm ? (
         <div style={READONLY_BLOCK}>No spec attached to this phase.</div>
+      ) : null}
+
+      {/* Linked PRD */}
+      <div style={{ ...SECTION_HEADING, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span>PRD</span>
+        {!prd && !showPRDForm && (
+          <button onClick={() => setShowPRDForm(true)} style={BTN_SECONDARY}>
+            + Attach PRD
+          </button>
+        )}
+      </div>
+
+      {showPRDForm && (
+        <div style={{ marginBottom: "12px", padding: "12px", border: "1px solid #d1d5db", borderRadius: "6px", backgroundColor: "#f9fafb" }}>
+          <div style={FIELD_STYLE}>
+            <label style={LABEL_STYLE}>Title</label>
+            <input
+              type="text"
+              value={prdForm.title}
+              onChange={(e) => setPrdForm((f) => ({ ...f, title: e.target.value }))}
+              placeholder="PRD title"
+              style={INPUT_STYLE}
+            />
+          </div>
+          <div style={FIELD_STYLE}>
+            <label style={LABEL_STYLE}>Source URL</label>
+            <input
+              type="url"
+              value={prdForm.sourceRef}
+              onChange={(e) => setPrdForm((f) => ({ ...f, sourceRef: e.target.value }))}
+              placeholder="https://..."
+              style={INPUT_STYLE}
+            />
+          </div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              onClick={handleAttachPRD}
+              disabled={!prdForm.title.trim()}
+              style={{
+                padding: "5px 14px",
+                backgroundColor: prdForm.title.trim() ? "#2563eb" : "#93c5fd",
+                color: "#fff",
+                border: "none",
+                borderRadius: "6px",
+                cursor: prdForm.title.trim() ? "pointer" : "default",
+                fontSize: "13px",
+                fontWeight: 500,
+              }}
+            >
+              Save PRD
+            </button>
+            <button onClick={() => { setShowPRDForm(false); setPrdForm({ title: "", sourceRef: "" }); }} style={BTN_SECONDARY}>
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
 
-      {/* Linked PRD (read-only) */}
-      <div style={SECTION_HEADING}>PRD</div>
       {prd ? (
         <div style={READONLY_BLOCK}>
           <div style={{ fontWeight: 600, color: "#111827", marginBottom: "4px" }}>
@@ -299,9 +511,20 @@ export default function PhaseDetail({ phase, spec, prd, onSave, onCancel }: Phas
             <div style={{ marginTop: "6px", fontSize: "12px", color: "#6b7280" }}>{prd.notes}</div>
           )}
         </div>
-      ) : (
+      ) : !showPRDForm ? (
         <div style={READONLY_BLOCK}>No PRD attached to this phase.</div>
-      )}
+      ) : null}
+
+      {/* Conversation References */}
+      <div style={SECTION_HEADING}>Conversation References</div>
+      <ConversationRefs
+        references={conversationRefs}
+        scopeType="phase"
+        scopeId={phase.id}
+        onAdd={onAddConversationRef}
+        onUpdate={onUpdateConversationRef}
+        onDelete={onDeleteConversationRef}
+      />
 
       {/* Grayed-out placeholders */}
       <div style={SECTION_HEADING}>Build Output</div>
