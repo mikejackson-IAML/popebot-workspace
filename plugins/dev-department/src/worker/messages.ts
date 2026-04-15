@@ -1,4 +1,4 @@
-import type { DevProject, Phase, Spec, PRD, ConversationReference, BuildDispatch, BuildOutput, Review, RevisionEvent, ScopeType, PhaseStatus } from "./types";
+import type { DevProject, Phase, Spec, PRD, ConversationReference, BuildDispatch, BuildOutput, Review, RevisionEvent, ScopeType, PhaseStatus } from "./types.js";
 
 export type WorkerRequest =
   | { type: "init" }

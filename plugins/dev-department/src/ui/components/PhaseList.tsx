@@ -1,4 +1,4 @@
-import type { Phase, PhaseStatus, FreezeState } from "../../worker/types";
+import type { Phase, PhaseStatus, FreezeState } from "../../worker/types.js";
 
 const PHASE_STATUS_COLORS: Record<PhaseStatus, { bg: string; text: string }> = {
   DraftSpec:                { bg: "#f3f4f6", text: "#6b7280" },

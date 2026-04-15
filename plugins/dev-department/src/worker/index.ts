@@ -1,9 +1,9 @@
-import { store } from "./state";
-import type { WorkerRequest, WorkerResponse } from "./messages";
+import { store } from "./state.js";
+import type { WorkerRequest, WorkerResponse } from "./messages.js";
 
-export { store } from "./state";
-export * from "./types";
-export * from "./messages";
+export { store } from "./state.js";
+export * from "./types.js";
+export * from "./messages.js";
 
 export function handleMessage(request: WorkerRequest): WorkerResponse {
   try {

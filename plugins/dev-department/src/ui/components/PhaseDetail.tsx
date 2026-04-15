@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
-import type { Phase, Spec, PRD, PhaseStatus, FreezeState, ConversationReference } from "../../worker/types";
+import type { Phase, Spec, PRD, PhaseStatus, FreezeState, ConversationReference } from "../../worker/types.js";
 
-import { VALID_TRANSITIONS } from "../../worker/messages";
-import { ConversationRefs } from "./ConversationRefs";
+import { VALID_TRANSITIONS } from "../../worker/messages.js";
+import { ConversationRefs } from "./ConversationRefs.js";
 
 const PHASE_STATUS_OPTIONS: { value: PhaseStatus; label: string }[] = [
   { value: "DraftSpec",                label: "Draft Spec" },

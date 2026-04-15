@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ConversationReference, ConversationSystem, ConversationRole, ScopeType } from "../../worker/types";
+import { ConversationReference, ConversationSystem, ConversationRole, ScopeType } from "../../worker/types.js";
 
 interface Props {
   references: ConversationReference[];

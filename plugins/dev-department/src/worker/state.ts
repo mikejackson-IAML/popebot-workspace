@@ -1,5 +1,5 @@
-import { DevProject, Phase, Spec, PRD, ConversationReference, ScopeType, BuildDispatch, BuildOutput, Review, RevisionEvent, PhaseStatus, FreezeState } from "./types";
-import { VALID_TRANSITIONS } from "./messages";
+import { DevProject, Phase, Spec, PRD, ConversationReference, ScopeType, BuildDispatch, BuildOutput, Review, RevisionEvent, PhaseStatus, FreezeState } from "./types.js";
+import { VALID_TRANSITIONS } from "./messages.js";
 
 export class StateStore {
   private projects: Map<string, DevProject> = new Map();

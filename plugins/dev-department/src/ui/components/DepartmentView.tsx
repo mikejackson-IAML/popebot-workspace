@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
-import type { DevProject, Phase, Spec, PRD, ProjectStatus, ConversationReference } from "../../worker/types";
-import { store } from "../../worker/state";
-import ProjectHeader from "./ProjectHeader";
-import PhaseList from "./PhaseList";
-import PhaseDetail from "./PhaseDetail";
-import { ConversationRefs } from "./ConversationRefs";
+import type { DevProject, Phase, Spec, PRD, ProjectStatus, ConversationReference } from "../../worker/types.js";
+import { store } from "../../worker/state.js";
+import ProjectHeader from "./ProjectHeader.js";
+import PhaseList from "./PhaseList.js";
+import PhaseDetail from "./PhaseDetail.js";
+import { ConversationRefs } from "./ConversationRefs.js";
 
 
 const STATUS_COLORS: Record<ProjectStatus, { bg: string; text: string }> = {

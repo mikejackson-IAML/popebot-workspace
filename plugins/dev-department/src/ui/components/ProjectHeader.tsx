@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import type { DevProject, ProjectStatus, Phase } from "../../worker/types";
+import type { DevProject, ProjectStatus, Phase } from "../../worker/types.js";
 
 interface ProjectHeaderProps {
   project: DevProject;

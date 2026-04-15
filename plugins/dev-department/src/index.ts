@@ -1,2 +1,2 @@
-export { default as manifest } from "./manifest";
-export { default as worker } from "./worker";
+export { default as manifest } from "./manifest.js";
+export { default as worker } from "./worker.js";

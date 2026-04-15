@@ -1,7 +1,7 @@
 import { definePlugin, runWorker } from "@paperclipai/plugin-sdk";
-import { store } from "./worker/state";
-import { handleMessage } from "./worker/index";
-import type { WorkerRequest } from "./worker/messages";
+import { store } from "./worker/state.js";
+import { handleMessage } from "./worker/index.js";
+import type { WorkerRequest } from "./worker/messages.js";
 
 const plugin = definePlugin({
   async setup(ctx) {
