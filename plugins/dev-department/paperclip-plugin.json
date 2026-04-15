@@ -5,8 +5,8 @@
   "displayName": "Development Department",
   "description": "Phase-aware build governance for phased architecture projects",
   "author": "Mike Jackson",
-  "categories": ["productivity"],
-  "capabilities": ["plugin.state.read", "plugin.state.write"],
+  "categories": ["workspace"],
+  "capabilities": ["plugin.state.read", "plugin.state.write", "ui.sidebar.register", "ui.detailTab.register"],
   "entrypoints": {
     "worker": "src/worker/index.ts",
     "ui": "src/ui/index.tsx"
