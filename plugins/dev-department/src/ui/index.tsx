@@ -1,41 +1,65 @@
-import { useState, useEffect } from "react";
-import type { PluginProjectSidebarItemProps, PluginDetailTabProps } from "@paperclipai/plugin-sdk/ui";
-// store runs in worker, not UI — use local state
-// Local in-memory store for UI (persistence comes later via plugin SDK messages)
-const localProjects = new Map<string, any>();
-const localPhases = new Map<string, any>();
-const localStore = {
-  listProjects: () => Array.from(localProjects.values()),
-  createProject: (data: any) => { const p = { id: crypto.randomUUID(), ...data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; localProjects.set(p.id, p); return p; },
-  updateProject: (id: string, data: any) => { const p = localProjects.get(id); if (!p) throw new Error("Not found"); const u = { ...p, ...data, updatedAt: new Date().toISOString() }; localProjects.set(id, u); return u; },
-  deleteProject: (id: string) => { localProjects.delete(id); for (const [k,v] of localPhases) { if ((v as any).projectId === id) localPhases.delete(k); } },
-  getPhasesByProject: (pid: string) => Array.from(localPhases.values()).filter((p: any) => p.projectId === pid).sort((a: any, b: any) => a.sortOrder - b.sortOrder),
-  createPhase: (data: any) => { const p = { id: crypto.randomUUID(), ...data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; localPhases.set(p.id, p); return p; },
-  updatePhase: (id: string, data: any) => {
-    const p = localPhases.get(id);
-    if (!p) throw new Error("Not found");
-    if (p.freezeState === "Locked" && Object.keys(data).some((k: string) => k !== "freezeState")) throw new Error("Phase is locked");
-    if (data.status && data.status !== p.status) { const allowed = VALID_TRANSITIONS[p.status] || []; if (!allowed.includes(data.status)) throw new Error("Invalid transition: " + p.status + " → " + data.status); }
-    const u = { ...p, ...data, updatedAt: new Date().toISOString() }; localPhases.set(id, u); return u;
-  },
-  deletePhase: (id: string) => { localPhases.delete(id); },
-  reorderPhases: (pid: string, ids: string[]) => { ids.forEach((id, i) => { const p = localPhases.get(id); if (p && p.projectId === pid) localPhases.set(id, { ...p, sortOrder: i }); }); },
-};
+import { useState } from "react";
+import type {
+  PluginProjectSidebarItemProps,
+  PluginDetailTabProps,
+} from "@paperclipai/plugin-sdk/ui";
+import {
+  usePluginData,
+  usePluginAction,
+  useHostContext,
+} from "@paperclipai/plugin-sdk/ui";
 
+// =============================================================================
+// Types (mirror worker/types.ts for UI)
+// =============================================================================
 
+type ProjectStatus = "draft" | "planning" | "ready" | "building" | "reviewing" | "complete" | "failed";
+type ProjectPriority = "P0" | "P1" | "P2" | "P3";
 
-type PhaseStatus = "DraftSpec" | "SpecApproved" | "PRDAttached" | "ReadyForBuild" | "Accepted" | "ReworkRequired" | "Closed";
-type FreezeState = "Locked" | "FrozenDownstream" | "EditableDownstream" | "DownstreamRevisionRequired";
-type DevProject = { id: string; name: string; objective: string; owner: string; status: string; activePhaseId: string | null; roadmapSummary: string; createdAt: string; updatedAt: string; };
-type Phase = { id: string; projectId: string; phaseNumber: number; title: string; objective: string; description: string; status: PhaseStatus; prerequisites: string; successCriteria: string; riskNotes: string; freezeState: FreezeState; sortOrder: number; createdAt: string; updatedAt: string; };
-const VALID_TRANSITIONS: Record<string, string[]> = { DraftSpec: ["SpecApproved"], SpecApproved: ["PRDAttached", "DraftSpec"], PRDAttached: ["ReadyForBuild", "SpecApproved"], ReadyForBuild: ["Accepted", "ReworkRequired"], Accepted: ["Closed"], ReworkRequired: ["DraftSpec", "PRDAttached"], Closed: [] };
-// Dark theme colors
-const COLORS = {
+interface ManagedProject {
+  id: string;
+  parentProjectId: string;
+  name: string;
+  prdText: string;
+  priority: ProjectPriority;
+  status: ProjectStatus;
+  decompositionSummary: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface BuildJob {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string;
+  targetFiles: string[];
+  dependencies: string[];
+  status: string;
+  popebotJobId: string | null;
+  prUrl: string | null;
+  dispatchedAt: string | null;
+  completedAt: string | null;
+}
+
+interface ProjectDetail {
+  project: ManagedProject;
+  jobs: BuildJob[];
+  pipeline: unknown;
+  reviews: unknown[];
+  usage: unknown[];
+}
+
+// =============================================================================
+// Theme
+// =============================================================================
+
+const C = {
   bg: "#0f172a",
   bgCard: "#1e293b",
   bgInput: "#0f172a",
   border: "#334155",
-  borderLight: "#475569",
+  borderFocus: "#6366f1",
   text: "#e2e8f0",
   textMuted: "#94a3b8",
   textDim: "#64748b",
@@ -48,318 +72,476 @@ const COLORS = {
 };
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  Draft: { bg: "#374151", text: "#9ca3af" },
-  Active: { bg: "#064e3b", text: "#34d399" },
-  Blocked: { bg: "#7f1d1d", text: "#f87171" },
-  Archived: { bg: "#1f2937", text: "#6b7280" },
-  DraftSpec: { bg: "#374151", text: "#9ca3af" },
-  SpecApproved: { bg: "#1e3a5f", text: "#60a5fa" },
-  PRDAttached: { bg: "#3b0764", text: "#c084fc" },
-  ReadyForBuild: { bg: "#064e3b", text: "#34d399" },
-  Accepted: { bg: "#14532d", text: "#4ade80" },
-  ReworkRequired: { bg: "#7f1d1d", text: "#f87171" },
-  Closed: { bg: "#1f2937", text: "#6b7280" },
+  draft: { bg: "#374151", text: "#9ca3af" },
+  planning: { bg: "#1e3a5f", text: "#60a5fa" },
+  ready: { bg: "#3b0764", text: "#c084fc" },
+  building: { bg: "#064e3b", text: "#34d399" },
+  reviewing: { bg: "#78350f", text: "#fbbf24" },
+  complete: { bg: "#14532d", text: "#4ade80" },
+  failed: { bg: "#7f1d1d", text: "#f87171" },
+  // job statuses
+  pending: { bg: "#374151", text: "#9ca3af" },
+  dispatched: { bg: "#1e3a5f", text: "#60a5fa" },
+  merged: { bg: "#14532d", text: "#4ade80" },
+  skipped: { bg: "#1f2937", text: "#6b7280" },
 };
 
-function Badge({ label }: { label: string }) {
-  const c = STATUS_COLORS[label] || { bg: "#374151", text: "#9ca3af" };
-  return <span style={{ padding: "2px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: 600, backgroundColor: c.bg, color: c.text }}>{label}</span>;
+const PRIORITY_COLORS: Record<string, { bg: string; text: string }> = {
+  P0: { bg: "#7f1d1d", text: "#fca5a5" },
+  P1: { bg: "#78350f", text: "#fbbf24" },
+  P2: { bg: "#1e3a5f", text: "#60a5fa" },
+  P3: { bg: "#374151", text: "#9ca3af" },
+};
+
+// =============================================================================
+// Primitives
+// =============================================================================
+
+function Badge({ label, colors }: { label: string; colors?: Record<string, { bg: string; text: string }> }) {
+  const map = colors || STATUS_COLORS;
+  const c = map[label] || { bg: "#374151", text: "#9ca3af" };
+  return (
+    <span style={{ padding: "2px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: 600, backgroundColor: c.bg, color: c.text }}>
+      {label}
+    </span>
+  );
 }
 
-function Btn({ children, onClick, variant = "default", disabled = false }: { children: React.ReactNode; onClick: (e?: any) => void; variant?: "default" | "primary" | "danger" | "ghost"; disabled?: boolean }) {
-  const styles: Record<string, any> = {
-    default: { backgroundColor: "#374151", color: COLORS.text },
-    primary: { backgroundColor: COLORS.accent, color: "#fff" },
-    danger: { backgroundColor: COLORS.dangerBg, color: "#f87171" },
-    ghost: { backgroundColor: "transparent", color: COLORS.textMuted },
+function Btn({ children, onClick, variant = "default", disabled = false, style }: {
+  children: React.ReactNode;
+  onClick: (e?: any) => void;
+  variant?: "default" | "primary" | "danger" | "ghost";
+  disabled?: boolean;
+  style?: React.CSSProperties;
+}) {
+  const styles: Record<string, React.CSSProperties> = {
+    default: { backgroundColor: "#374151", color: C.text },
+    primary: { backgroundColor: C.accent, color: "#fff" },
+    danger: { backgroundColor: C.dangerBg, color: "#f87171" },
+    ghost: { backgroundColor: "transparent", color: C.textMuted },
   };
-  return <button onClick={onClick} disabled={disabled} style={{ padding: "6px 14px", border: "none", borderRadius: "6px", cursor: disabled ? "not-allowed" : "pointer", fontSize: "13px", fontWeight: 500, opacity: disabled ? 0.5 : 1, ...styles[variant] }}>{children}</button>;
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        padding: "8px 16px", border: "none", borderRadius: "6px",
+        cursor: disabled ? "not-allowed" : "pointer", fontSize: "13px", fontWeight: 500,
+        opacity: disabled ? 0.5 : 1, ...styles[variant], ...style,
+      }}
+    >
+      {children}
+    </button>
+  );
 }
 
-function Input({ value, onChange, placeholder, type = "text" }: { value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
-  return <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ width: "100%", padding: "8px 12px", backgroundColor: COLORS.bgInput, color: COLORS.text, border: `1px solid ${COLORS.borderLight}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box" }} />;
+function Input({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <input
+      type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+      style={{
+        width: "100%", padding: "10px 12px", backgroundColor: C.bgInput, color: C.text,
+        border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box",
+      }}
+    />
+  );
 }
 
 function TextArea({ value, onChange, placeholder, rows = 3 }: { value: string; onChange: (v: string) => void; placeholder?: string; rows?: number }) {
-  return <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows} style={{ width: "100%", padding: "8px 12px", backgroundColor: COLORS.bgInput, color: COLORS.text, border: `1px solid ${COLORS.borderLight}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box", resize: "vertical" }} />;
-}
-
-function Select({ value, onChange, options, disabled = false }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; disabled?: boolean }) {
-  return <select value={value} onChange={e => onChange(e.target.value)} disabled={disabled} style={{ width: "100%", padding: "8px 12px", backgroundColor: COLORS.bgInput, color: COLORS.text, border: `1px solid ${COLORS.borderLight}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box", opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer" }}>{options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select>;
-}
-
-function Card({ children, onClick, style }: { children: React.ReactNode; onClick?: () => void; style?: any }) {
-  return <div onClick={onClick} style={{ padding: "16px", backgroundColor: COLORS.bgCard, borderRadius: "8px", border: `1px solid ${COLORS.border}`, cursor: onClick ? "pointer" : "default", ...style }}>{children}</div>;
-}
-
-// ============================================================
-// PHASE DETAIL
-// ============================================================
-function PhaseDetailPanel({ phase, onSave, onBack }: { phase: Phase; onSave: (updates: Partial<Phase>) => void; onBack: () => void }) {
-  const [title, setTitle] = useState(phase.title);
-  const [objective, setObjective] = useState(phase.objective);
-  const [description, setDescription] = useState(phase.description);
-  const [status, setStatus] = useState(phase.status);
-  const [freezeState, setFreezeState] = useState(phase.freezeState);
-  const [prerequisites, setPrerequisites] = useState(phase.prerequisites);
-  const [successCriteria, setSuccessCriteria] = useState(phase.successCriteria);
-  const [riskNotes, setRiskNotes] = useState(phase.riskNotes);
-
-  useEffect(() => {
-    setTitle(phase.title); setObjective(phase.objective); setDescription(phase.description);
-    setStatus(phase.status); setFreezeState(phase.freezeState);
-    setPrerequisites(phase.prerequisites); setSuccessCriteria(phase.successCriteria); setRiskNotes(phase.riskNotes);
-  }, [phase.id, phase.updatedAt]);
-
-  const allowed = [phase.status, ...(VALID_TRANSITIONS[phase.status] || [])];
-  const isLocked = phase.freezeState === "Locked";
-
-  const handleSave = () => {
-    onSave({ title, objective, description, status: status as PhaseStatus, freezeState: freezeState as FreezeState, prerequisites, successCriteria, riskNotes });
-  };
-
   return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
-        <Btn onClick={onBack} variant="ghost">← Back</Btn>
-        <h3 style={{ margin: 0, color: COLORS.text }}>Phase {phase.sortOrder + 1}: {phase.title}</h3>
-        <Badge label={phase.status} />
-        {isLocked && <span style={{ color: COLORS.warning, fontSize: "12px" }}>🔒 Locked</span>}
-      </div>
+    <textarea
+      value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={rows}
+      style={{
+        width: "100%", padding: "10px 12px", backgroundColor: C.bgInput, color: C.text,
+        border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "14px",
+        boxSizing: "border-box", resize: "vertical", fontFamily: "monospace",
+      }}
+    />
+  );
+}
 
-      {isLocked && <Card style={{ marginBottom: "16px", borderColor: COLORS.warning }}><span style={{ color: COLORS.warning }}>⚠️ This phase is locked. Change freeze state to edit.</span></Card>}
+function Select({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
+  return (
+    <select
+      value={value} onChange={(e) => onChange(e.target.value)}
+      style={{
+        width: "100%", padding: "10px 12px", backgroundColor: C.bgInput, color: C.text,
+        border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box",
+      }}
+    >
+      {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  );
+}
 
-      <div style={{ display: "grid", gap: "12px" }}>
-        <div><label style={{ display: "block", color: COLORS.textMuted, fontSize: "12px", marginBottom: "4px" }}>Title</label><Input value={title} onChange={setTitle} placeholder="Phase title" /></div>
-        <div><label style={{ display: "block", color: COLORS.textMuted, fontSize: "12px", marginBottom: "4px" }}>Objective</label><TextArea value={objective} onChange={setObjective} placeholder="What this phase achieves" /></div>
-        <div><label style={{ display: "block", color: COLORS.textMuted, fontSize: "12px", marginBottom: "4px" }}>Description</label><TextArea value={description} onChange={setDescription} placeholder="Detailed description" rows={4} /></div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-          <div>
-            <label style={{ display: "block", color: COLORS.textMuted, fontSize: "12px", marginBottom: "6px" }}>Status</label>
-            <Select value={status} onChange={v => setStatus(v as PhaseStatus)} options={allowed.map(s => ({ value: s, label: s }))} disabled={isLocked} />
-          </div>
-          <div>
-            <label style={{ display: "block", color: COLORS.textMuted, fontSize: "12px", marginBottom: "6px" }}>Freeze State</label>
-            <Select value={freezeState} onChange={v => setFreezeState(v as FreezeState)} options={[
-              { value: "EditableDownstream", label: "Editable" },
-              { value: "Locked", label: "Locked" },
-              { value: "FrozenDownstream", label: "Frozen Downstream" },
-              { value: "DownstreamRevisionRequired", label: "Revision Required" },
-            ]} />
-          </div>
-        </div>
-        <div><label style={{ display: "block", color: COLORS.textMuted, fontSize: "12px", marginBottom: "4px" }}>Prerequisites</label><TextArea value={prerequisites} onChange={setPrerequisites} placeholder="What must be done first" /></div>
-        <div><label style={{ display: "block", color: COLORS.textMuted, fontSize: "12px", marginBottom: "4px" }}>Success Criteria</label><TextArea value={successCriteria} onChange={setSuccessCriteria} placeholder="How we know this phase is done" /></div>
-        <div><label style={{ display: "block", color: COLORS.textMuted, fontSize: "12px", marginBottom: "4px" }}>Risk Notes</label><TextArea value={riskNotes} onChange={setRiskNotes} placeholder="Known risks" /></div>
-      </div>
-
-      <div style={{ marginTop: "16px", display: "flex", gap: "8px" }}>
-        <Btn onClick={handleSave} variant="primary">Save Phase</Btn>
-        <Btn onClick={onBack} variant="ghost">Cancel</Btn>
-      </div>
-
-      {/* Placeholder sections */}
-      <div style={{ marginTop: "24px", display: "grid", gap: "8px" }}>
-        {["Build Output", "Review", "Revision Events"].map(label => (
-          <Card key={label} style={{ border: "1px dashed #475569" }}>
-            <span style={{ color: COLORS.textDim, fontSize: "13px" }}>{label} — coming in future phase</span>
-          </Card>
-        ))}
-      </div>
+function Card({ children, onClick, style }: { children: React.ReactNode; onClick?: () => void; style?: React.CSSProperties }) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        padding: "16px", backgroundColor: C.bgCard, borderRadius: "8px",
+        border: `1px solid ${C.border}`, cursor: onClick ? "pointer" : "default", ...style,
+      }}
+    >
+      {children}
     </div>
   );
 }
 
-// ============================================================
-// MAIN DEPARTMENT VIEW
-// ============================================================
-function DepartmentView() {
-  const [projects, setProjects] = useState<DevProject[]>([]);
-  const [selectedProject, setSelectedProject] = useState<DevProject | null>(null);
-  const [phases, setPhases] = useState<Phase[]>([]);
-  const [selectedPhase, setSelectedPhase] = useState<Phase | null>(null);
-  const [showCreateProject, setShowCreateProject] = useState(false);
-  const [newProjectName, setNewProjectName] = useState("");
-  const [editingProject, setEditingProject] = useState(false);
-  const [projectName, setProjectName] = useState("");
-  const [projectObjective, setProjectObjective] = useState("");
-  const [projectStatus, setProjectStatus] = useState("Draft");
-  const [error, setError] = useState<string | null>(null);
+function Label({ children }: { children: React.ReactNode }) {
+  return <label style={{ display: "block", color: C.textMuted, fontSize: "12px", marginBottom: "4px", fontWeight: 500 }}>{children}</label>;
+}
 
-  useEffect(() => { setProjects(localStore.listProjects()); }, []);
+function ErrorBanner({ message }: { message: string }) {
+  return (
+    <Card style={{ marginBottom: "12px", borderColor: C.danger }}>
+      <span style={{ color: "#f87171" }}>{message}</span>
+    </Card>
+  );
+}
 
-  const refreshPhases = (projectId: string) => setPhases(localStore.getPhasesByProject(projectId));
+// =============================================================================
+// Create Project Form
+// =============================================================================
 
-  const handleCreateProject = () => {
-    const p = localStore.createProject({ name: newProjectName || "New Project", objective: "", owner: "Mike", status: "Draft", activePhaseId: null, roadmapSummary: "" });
-    setProjects(localStore.listProjects());
-    setSelectedProject(p);
-    setPhases([]);
-    setNewProjectName("");
-    setShowCreateProject(false);
+function CreateProjectForm({ onSubmit, onCancel }: {
+  onSubmit: (data: { name: string; prdText: string; priority: ProjectPriority }) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [prdText, setPrdText] = useState("");
+  const [priority, setPriority] = useState<ProjectPriority>("P2");
+
+  return (
+    <Card style={{ marginBottom: "16px" }}>
+      <h3 style={{ margin: "0 0 16px 0", color: C.text, fontSize: "16px" }}>New Project</h3>
+      <div style={{ display: "grid", gap: "12px" }}>
+        <div>
+          <Label>Project Name</Label>
+          <Input value={name} onChange={setName} placeholder="e.g. IAML Website Redesign" />
+        </div>
+        <div>
+          <Label>Priority</Label>
+          <Select
+            value={priority}
+            onChange={(v) => setPriority(v as ProjectPriority)}
+            options={[
+              { value: "P0", label: "P0 — Critical" },
+              { value: "P1", label: "P1 — High" },
+              { value: "P2", label: "P2 — Medium" },
+              { value: "P3", label: "P3 — Low" },
+            ]}
+          />
+        </div>
+        <div>
+          <Label>PRD (paste full text)</Label>
+          <TextArea
+            value={prdText}
+            onChange={setPrdText}
+            placeholder="Paste your PRD here. This will be analyzed by Opus to generate build jobs..."
+            rows={12}
+          />
+        </div>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <Btn
+            onClick={() => onSubmit({ name, prdText, priority })}
+            variant="primary"
+            disabled={!name.trim()}
+          >
+            Create Project
+          </Btn>
+          <Btn onClick={onCancel} variant="ghost">Cancel</Btn>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// =============================================================================
+// Project Detail View
+// =============================================================================
+
+function ProjectDetailView({ projectId, parentProjectId, onBack }: {
+  projectId: string;
+  parentProjectId: string;
+  onBack: () => void;
+}) {
+  const { data, loading, error, refresh } = usePluginData<ProjectDetail>("project-detail", {
+    parentProjectId,
+    projectId,
+  });
+
+  const updateProject = usePluginAction("update-project");
+  const deleteProjectAction = usePluginAction("delete-project");
+
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editPrd, setEditPrd] = useState("");
+  const [editPriority, setEditPriority] = useState<ProjectPriority>("P2");
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  if (loading) return <div style={{ padding: "24px", color: C.textMuted }}>Loading...</div>;
+  if (error) return <ErrorBanner message={error.message} />;
+  if (!data) return <ErrorBanner message="Project not found" />;
+
+  const { project, jobs } = data;
+
+  const startEditing = () => {
+    setEditName(project.name);
+    setEditPrd(project.prdText);
+    setEditPriority(project.priority);
+    setEditing(true);
   };
 
-  const handleSelectProject = (p: DevProject) => {
-    setSelectedProject(p);
-    setPhases(localStore.getPhasesByProject(p.id));
-    setSelectedPhase(null);
-    setProjectName(p.name);
-    setProjectObjective(p.objective);
-    setProjectStatus(p.status);
-    setEditingProject(false);
-  };
-
-  const handleSaveProject = () => {
-    if (!selectedProject) return;
-    const updated = localStore.updateProject(selectedProject.id, { name: projectName, objective: projectObjective, status: projectStatus as any });
-    setSelectedProject(updated);
-    setProjects(localStore.listProjects());
-    setEditingProject(false);
-  };
-
-  const handleAddPhase = () => {
-    if (!selectedProject) return;
-    localStore.createPhase({ projectId: selectedProject.id, phaseNumber: phases.length + 1, title: "New Phase", objective: "", description: "", status: "DraftSpec", prerequisites: "", successCriteria: "", riskNotes: "", freezeState: "EditableDownstream", sortOrder: phases.length });
-    refreshPhases(selectedProject.id);
-  };
-
-  const handleDeletePhase = (id: string) => {
-    if (!confirm("Delete this phase and all associated data?")) return;
-    localStore.deletePhase(id);
-    if (selectedProject) refreshPhases(selectedProject.id);
-    if (selectedPhase?.id === id) setSelectedPhase(null);
-  };
-
-  const handleSavePhase = (updates: Partial<Phase>) => {
-    if (!selectedPhase || !selectedProject) return;
+  const handleSave = async () => {
     try {
-      setError(null);
-      const updated = localStore.updatePhase(selectedPhase.id, updates);
-      setSelectedPhase(updated);
-      refreshPhases(selectedProject.id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setActionError(null);
+      await updateProject({
+        parentProjectId,
+        projectId,
+        updates: { name: editName, prdText: editPrd, priority: editPriority },
+      });
+      setEditing(false);
+      refresh();
+    } catch (err: any) {
+      setActionError(err.message || "Failed to update");
     }
   };
 
-  const handleReorder = (phaseId: string, direction: "up" | "down") => {
-    if (!selectedProject) return;
-    const sorted = [...phases].sort((a, b) => a.sortOrder - b.sortOrder);
-    const idx = sorted.findIndex(p => p.id === phaseId);
-    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= sorted.length) return;
-    const reordered = [...sorted];
-    [reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]];
-    localStore.reorderPhases(selectedProject.id, reordered.map(p => p.id));
-    refreshPhases(selectedProject.id);
+  const handleDelete = async () => {
+    if (!confirm("Delete this project and all associated data?")) return;
+    try {
+      await deleteProjectAction({ parentProjectId, projectId });
+      onBack();
+    } catch (err: any) {
+      setActionError(err.message || "Failed to delete");
+    }
   };
 
-  // ── Phase detail view ──
-  if (selectedPhase) {
-    return (
-      <div style={{ padding: "24px", color: COLORS.text, fontFamily: "system-ui" }}>
-        {error && <Card style={{ marginBottom: "12px", borderColor: COLORS.danger }}><span style={{ color: "#f87171" }}>⚠️ {error}</span></Card>}
-        <PhaseDetailPanel phase={selectedPhase} onSave={handleSavePhase} onBack={() => setSelectedPhase(null)} />
+  return (
+    <div>
+      {actionError && <ErrorBanner message={actionError} />}
+
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
+        <Btn onClick={onBack} variant="ghost">← Back</Btn>
+        <h2 style={{ margin: 0, color: C.text, fontSize: "18px", flex: 1 }}>{project.name}</h2>
+        <Badge label={project.priority} colors={PRIORITY_COLORS} />
+        <Badge label={project.status} />
       </div>
-    );
-  }
 
-  // ── Project detail view ──
-  if (selectedProject) {
-    return (
-      <div style={{ padding: "24px", color: COLORS.text, fontFamily: "system-ui" }}>
-        {error && <Card style={{ marginBottom: "12px", borderColor: COLORS.danger }}><span style={{ color: "#f87171" }}>⚠️ {error}</span></Card>}
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
-          <Btn onClick={() => { setSelectedProject(null); setError(null); }} variant="ghost">← Projects</Btn>
-          {editingProject ? (
-            <Input value={projectName} onChange={setProjectName} placeholder="Project name" />
-          ) : (
-            <h2 style={{ margin: 0, color: COLORS.text, cursor: "pointer" }} onClick={() => setEditingProject(true)}>{selectedProject.name}</h2>
-          )}
-          <Badge label={selectedProject.status} />
-        </div>
-
-        {editingProject && (
-          <Card style={{ marginBottom: "16px" }}>
-            <div style={{ display: "grid", gap: "12px" }}>
-              <div><label style={{ display: "block", color: COLORS.textMuted, fontSize: "12px", marginBottom: "4px" }}>Objective</label><TextArea value={projectObjective} onChange={setProjectObjective} placeholder="Project objective" /></div>
-              <div><label style={{ display: "block", color: COLORS.textMuted, fontSize: "12px", marginBottom: "4px" }}>Status</label>
-                <Select value={projectStatus} onChange={setProjectStatus} options={["Draft","Active","Blocked","Archived"].map(s => ({ value: s, label: s }))} />
-              </div>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <Btn onClick={handleSaveProject} variant="primary">Save</Btn>
-                <Btn onClick={() => setEditingProject(false)} variant="ghost">Cancel</Btn>
-              </div>
+      {/* Edit / View toggle */}
+      {editing ? (
+        <Card style={{ marginBottom: "16px" }}>
+          <div style={{ display: "grid", gap: "12px" }}>
+            <div>
+              <Label>Project Name</Label>
+              <Input value={editName} onChange={setEditName} placeholder="Project name" />
             </div>
-          </Card>
-        )}
+            <div>
+              <Label>Priority</Label>
+              <Select
+                value={editPriority}
+                onChange={(v) => setEditPriority(v as ProjectPriority)}
+                options={[
+                  { value: "P0", label: "P0 — Critical" },
+                  { value: "P1", label: "P1 — High" },
+                  { value: "P2", label: "P2 — Medium" },
+                  { value: "P3", label: "P3 — Low" },
+                ]}
+              />
+            </div>
+            <div>
+              <Label>PRD</Label>
+              <TextArea value={editPrd} onChange={setEditPrd} placeholder="PRD text..." rows={12} />
+            </div>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <Btn onClick={handleSave} variant="primary">Save</Btn>
+              <Btn onClick={() => setEditing(false)} variant="ghost">Cancel</Btn>
+            </div>
+          </div>
+        </Card>
+      ) : (
+        <div style={{ display: "grid", gap: "12px", marginBottom: "20px" }}>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <Btn onClick={startEditing} variant="default">Edit Project</Btn>
+            <Btn onClick={handleDelete} variant="danger">Delete</Btn>
+          </div>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-          <h3 style={{ margin: 0, color: COLORS.textMuted, fontSize: "14px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Phases</h3>
-          <Btn onClick={handleAddPhase} variant="primary">+ Add Phase</Btn>
+          {/* PRD Display */}
+          {project.prdText ? (
+            <Card>
+              <Label>PRD</Label>
+              <pre style={{
+                color: C.text, fontSize: "13px", lineHeight: "1.5",
+                whiteSpace: "pre-wrap", wordBreak: "break-word",
+                maxHeight: "300px", overflow: "auto", margin: 0,
+              }}>
+                {project.prdText}
+              </pre>
+            </Card>
+          ) : (
+            <Card style={{ border: "1px dashed #475569" }}>
+              <span style={{ color: C.textDim }}>No PRD attached. Edit this project to add one.</span>
+            </Card>
+          )}
         </div>
+      )}
 
-        {phases.length === 0 ? (
-          <Card style={{ textAlign: "center", padding: "32px", border: "1px dashed #475569" }}>
-            <div style={{ color: COLORS.textMuted }}>No phases yet. Click "+ Add Phase" to start.</div>
+      {/* Build Jobs Section */}
+      <div style={{ marginBottom: "16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+          <h3 style={{ margin: 0, color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Build Jobs
+          </h3>
+          {project.prdText && project.status === "draft" && (
+            <Btn variant="primary" onClick={() => { /* Phase 2: decompose PRD */ }} disabled>
+              Analyze PRD (coming soon)
+            </Btn>
+          )}
+        </div>
+        {jobs.length === 0 ? (
+          <Card style={{ border: "1px dashed #475569", textAlign: "center", padding: "24px" }}>
+            <span style={{ color: C.textDim }}>
+              {project.prdText
+                ? "PRD attached. Click \"Analyze PRD\" to decompose into build jobs."
+                : "Add a PRD first, then analyze it to generate build jobs."}
+            </span>
           </Card>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            {phases.map((p, i) => (
-              <Card key={p.id} onClick={() => setSelectedPhase(p)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            {jobs.map((job, i) => (
+              <Card key={job.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  <span style={{ color: COLORS.textDim, fontSize: "14px", fontWeight: 700, minWidth: "28px" }}>#{i + 1}</span>
+                  <span style={{ color: C.textDim, fontSize: "13px", fontWeight: 700, minWidth: "24px" }}>#{i + 1}</span>
                   <div>
-                    <div style={{ fontWeight: 600, color: COLORS.text }}>{p.title}</div>
-                    {p.objective && <div style={{ fontSize: "12px", color: COLORS.textDim, marginTop: "2px" }}>{p.objective.slice(0, 80)}</div>}
+                    <div style={{ fontWeight: 600, color: C.text, fontSize: "14px" }}>{job.name}</div>
+                    <div style={{ fontSize: "12px", color: C.textDim, marginTop: "2px" }}>
+                      {job.targetFiles.join(", ") || "No target files"}
+                    </div>
                   </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <Badge label={p.status} />
-                  {p.freezeState === "Locked" && <span title="Locked">🔒</span>}
-                  <Btn onClick={(e: any) => { e.stopPropagation(); handleReorder(p.id, "up"); }} variant="ghost" disabled={i === 0}>↑</Btn>
-                  <Btn onClick={(e: any) => { e.stopPropagation(); handleReorder(p.id, "down"); }} variant="ghost" disabled={i === phases.length - 1}>↓</Btn>
-                  <Btn onClick={(e: any) => { e.stopPropagation(); handleDeletePhase(p.id); }} variant="danger">×</Btn>
-                </div>
+                <Badge label={job.status} />
               </Card>
             ))}
           </div>
         )}
       </div>
+
+      {/* Pipeline section placeholder */}
+      <Card style={{ border: "1px dashed #475569", marginBottom: "12px" }}>
+        <span style={{ color: C.textDim, fontSize: "13px" }}>Pipeline execution — coming in Phase 3</span>
+      </Card>
+
+      {/* Reviews placeholder */}
+      <Card style={{ border: "1px dashed #475569" }}>
+        <span style={{ color: C.textDim, fontSize: "13px" }}>Reviews and cost tracking — coming in Phase 4</span>
+      </Card>
+    </div>
+  );
+}
+
+// =============================================================================
+// Main Projects View
+// =============================================================================
+
+function ProjectsView() {
+  const { projectId: parentProjectId } = useHostContext();
+  const { data: projects, loading, error, refresh } = usePluginData<ManagedProject[]>("projects", {
+    parentProjectId: parentProjectId || "",
+  });
+
+  const createProjectAction = usePluginAction("create-project");
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  if (!parentProjectId) {
+    return (
+      <div style={{ padding: "24px", color: C.textMuted }}>
+        Open a project to see its automation.
+      </div>
     );
   }
 
-  // ── Project list view ──
+  // Detail view
+  if (selectedProjectId) {
+    return (
+      <div style={{ padding: "24px", color: C.text, fontFamily: "system-ui" }}>
+        <ProjectDetailView
+          projectId={selectedProjectId}
+          parentProjectId={parentProjectId}
+          onBack={() => { setSelectedProjectId(null); refresh(); }}
+        />
+      </div>
+    );
+  }
+
+  // List view
+  const handleCreate = async (data: { name: string; prdText: string; priority: ProjectPriority }) => {
+    try {
+      setActionError(null);
+      const result = await createProjectAction({
+        parentProjectId,
+        name: data.name,
+        prdText: data.prdText,
+        priority: data.priority,
+      }) as ManagedProject;
+      setShowCreate(false);
+      setSelectedProjectId(result.id);
+      refresh();
+    } catch (err: any) {
+      setActionError(err.message || "Failed to create project");
+    }
+  };
+
   return (
-    <div style={{ padding: "24px", color: COLORS.text, fontFamily: "system-ui", minHeight: "400px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", paddingBottom: "16px", borderBottom: `1px solid ${COLORS.border}` }}>
-        <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#f1f5f9" }}>Development Department</h2>
-        <Btn onClick={() => setShowCreateProject(true)} variant="primary">+ Create Project</Btn>
+    <div style={{ padding: "24px", color: C.text, fontFamily: "system-ui", minHeight: "400px" }}>
+      {actionError && <ErrorBanner message={actionError} />}
+
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        marginBottom: "24px", paddingBottom: "16px", borderBottom: `1px solid ${C.border}`,
+      }}>
+        <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#f1f5f9" }}>
+          Projects
+        </h2>
+        <Btn onClick={() => setShowCreate(true)} variant="primary">+ New Project</Btn>
       </div>
 
-      {showCreateProject && (
-        <Card style={{ marginBottom: "16px" }}>
-          <Input value={newProjectName} onChange={setNewProjectName} placeholder="Project name..." />
-          <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
-            <Btn onClick={handleCreateProject} variant="primary">Create</Btn>
-            <Btn onClick={() => setShowCreateProject(false)} variant="ghost">Cancel</Btn>
-          </div>
-        </Card>
+      {showCreate && (
+        <CreateProjectForm
+          onSubmit={handleCreate}
+          onCancel={() => setShowCreate(false)}
+        />
       )}
 
-      {projects.length === 0 && !showCreateProject ? (
+      {loading && <div style={{ color: C.textMuted }}>Loading...</div>}
+      {error && <ErrorBanner message={error.message} />}
+
+      {projects && projects.length === 0 && !showCreate ? (
         <Card style={{ textAlign: "center", padding: "48px", border: "1px dashed #475569" }}>
-          <div style={{ fontSize: "48px", marginBottom: "16px" }}>📋</div>
+          <div style={{ fontSize: "36px", marginBottom: "16px" }}>&#x1f680;</div>
           <div style={{ fontWeight: 600, marginBottom: "8px", color: "#cbd5e1" }}>No projects yet</div>
-          <div style={{ color: COLORS.textMuted }}>Click "Create Project" to start your first phased development initiative.</div>
+          <div style={{ color: C.textMuted }}>
+            Click "+ New Project" to create one. Paste a PRD and let the system build it for you.
+          </div>
         </Card>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {projects.map(p => (
-            <Card key={p.id} onClick={() => handleSelectProject(p)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: "15px", color: "#f1f5f9" }}>{p.name}</div>
-                {p.objective && <div style={{ fontSize: "12px", color: COLORS.textDim, marginTop: "4px" }}>{p.objective.slice(0, 100)}</div>}
+          {(projects || []).map((p) => (
+            <Card key={p.id} onClick={() => setSelectedProjectId(p.id)} style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+            }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div style={{ fontWeight: 600, fontSize: "15px", color: "#f1f5f9" }}>{p.name}</div>
+                  <Badge label={p.priority} colors={PRIORITY_COLORS} />
+                </div>
+                <div style={{ fontSize: "12px", color: C.textDim, marginTop: "4px" }}>
+                  {p.prdText ? `PRD: ${p.prdText.slice(0, 80)}...` : "No PRD attached"}
+                </div>
               </div>
               <Badge label={p.status} />
             </Card>
@@ -370,15 +552,28 @@ function DepartmentView() {
   );
 }
 
-export function DepartmentSidebar({ context }: PluginProjectSidebarItemProps) {
+// =============================================================================
+// Exported Slot Components
+// =============================================================================
+
+export function AutomationSidebar({ context }: PluginProjectSidebarItemProps) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", color: COLORS.text, fontSize: "14px", fontWeight: 500 }}>
-      <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "24px", height: "24px", borderRadius: "6px", backgroundColor: COLORS.accent, color: "#fff", fontSize: "13px", fontWeight: 700, flexShrink: 0 }}>D</span>
-      <span>Dev Department</span>
+    <div style={{
+      display: "flex", alignItems: "center", gap: "10px",
+      padding: "10px 14px", color: C.text, fontSize: "14px", fontWeight: 500,
+    }}>
+      <span style={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        width: "24px", height: "24px", borderRadius: "6px",
+        backgroundColor: C.accent, color: "#fff", fontSize: "13px", fontWeight: 700, flexShrink: 0,
+      }}>
+        A
+      </span>
+      <span>Automation</span>
     </div>
   );
 }
 
-export function PhasesTab({ context }: PluginDetailTabProps) {
-  return <DepartmentView />;
+export function ProjectsTab({ context }: PluginDetailTabProps) {
+  return <ProjectsView />;
 }

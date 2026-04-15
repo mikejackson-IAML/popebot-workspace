@@ -1,14 +1,23 @@
 import type { PaperclipPluginManifestV1 } from "@paperclipai/plugin-sdk";
 
 const manifest: PaperclipPluginManifestV1 = {
-  id: "dev-department",
+  id: "project-automation",
   apiVersion: 1,
-  version: "0.1.0",
-  displayName: "Development Department",
-  description: "Phase-aware build governance for phased architecture projects",
+  version: "0.2.0",
+  displayName: "Project Automation",
+  description: "Automated build governance — drop a PRD, walk away",
   author: "Mike Jackson",
   categories: ["workspace"],
-  capabilities: ["plugin.state.read", "plugin.state.write", "ui.sidebar.register", "ui.detailTab.register"],
+  capabilities: [
+    "plugin.state.read",
+    "plugin.state.write",
+    "ui.sidebar.register",
+    "ui.detailTab.register",
+    "http.outbound",
+    "secrets.read-ref",
+    "projects.read",
+    "activity.log.write",
+  ],
   entrypoints: {
     worker: "./dist/worker.js",
     ui: "./dist/ui",
@@ -17,16 +26,16 @@ const manifest: PaperclipPluginManifestV1 = {
     slots: [
       {
         type: "projectSidebarItem",
-        id: "dev-dept-sidebar",
-        displayName: "Development Department",
-        exportName: "DepartmentSidebar",
+        id: "automation-sidebar",
+        displayName: "Automation",
+        exportName: "AutomationSidebar",
         entityTypes: ["project"],
       },
       {
         type: "detailTab",
-        id: "dev-dept-phases",
-        displayName: "Phases",
-        exportName: "PhasesTab",
+        id: "automation-projects",
+        displayName: "Projects",
+        exportName: "ProjectsTab",
         entityTypes: ["project"],
       },
     ],

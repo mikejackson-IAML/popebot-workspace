@@ -1,22 +1,129 @@
-export type ProjectStatus = "Draft" | "Active" | "Blocked" | "Archived";
-export type ApprovalState = 'Pending' | 'Approved' | 'Rejected';
-export type BuildStatus = 'Queued' | 'InProgress' | 'Succeeded' | 'Failed';
-export type BuildClass = 'standard' | 'elevated' | 'critical';
-export type RiskLevel = 'low' | 'medium' | 'high';
-export type ReviewDecision = 'Accepted' | 'ReworkRequired' | 'ConditionallyAccepted' | 'Closed';
-export type PhaseStatus = "DraftSpec" | "SpecApproved" | "PRDAttached" | "ReadyForBuild" | "Accepted" | "ReworkRequired" | "Closed";
-export type FreezeState = "Locked" | "FrozenDownstream" | "EditableDownstream" | "DownstreamRevisionRequired";
-export type ConversationSystem = "Claude" | "ChatGPT" | "Other";
-export type ConversationRole = "planning" | "prd" | "architecture" | "review" | "revision";
-export type ConversationStatus = "active" | "reference" | "archived";
-export type ScopeType = "project" | "phase";
+// =============================================================================
+// Project Automation Plugin — Data Model
+// =============================================================================
 
-export interface DevProject { id: string; name: string; objective: string; owner: string; status: ProjectStatus; activePhaseId: string | null; roadmapSummary: string; createdAt: string; updatedAt: string; }
-export interface Phase { id: string; projectId: string; phaseNumber: number; title: string; objective: string; description: string; status: PhaseStatus; prerequisites: string; successCriteria: string; riskNotes: string; freezeState: FreezeState; sortOrder: number; createdAt: string; updatedAt: string; }
-export interface Spec { id: string; phaseId: string; title: string; sourceRef: string; version: string; author: string; approvalState: ApprovalState; notes: string; createdAt: string; updatedAt: string; }
-export interface PRD { id: string; phaseId: string; title: string; sourceRef: string; version: string; approvalState: ApprovalState; deviationNotes: string; notes: string; createdAt: string; updatedAt: string; }
-export interface BuildDispatch { id: string; phaseId: string; status: BuildStatus; buildClass: BuildClass; riskLevel: RiskLevel; targetRepo: string; environment: string; createdAt: string; }
-export interface BuildOutput { id: string; phaseId: string; buildDispatchId: string; status: BuildStatus; implementationSummary: string; artifactLinks: string[]; notes: string; createdAt: string; }
-export interface Review { id: string; phaseId: string; decision: ReviewDecision; comments: string; impactOnFuturePhases: string; decidedAt: string; }
-export interface RevisionEvent { id: string; sourcePhaseId: string; affectedPhaseIds: string[]; summary: string; reason: string; approvedBy: string; createdAt: string; }
-export interface ConversationReference { id: string; scopeType: ScopeType; scopeId: string; system: ConversationSystem; role: ConversationRole; url: string; status: ConversationStatus; authoritative: boolean; notes: string; }
+// -- Project status lifecycle --
+export type ProjectStatus = "draft" | "planning" | "ready" | "building" | "reviewing" | "complete" | "failed";
+export type ProjectPriority = "P0" | "P1" | "P2" | "P3";
+
+// -- Build job status --
+export type BuildJobStatus = "pending" | "dispatched" | "building" | "merged" | "failed" | "skipped";
+
+// -- Pipeline status --
+export type PipelineStatus = "queued" | "building" | "reviewing" | "fixing" | "complete" | "failed" | "cancelled";
+export type PipelineStep = "build" | "review" | "fix" | "advance";
+
+// -- Review --
+export type ReviewTier = "haiku" | "deepseek" | "codex";
+export type ReviewVerdict = "approve" | "request-changes" | "block" | "pass" | "concerns" | "unknown";
+
+// -- LLM model identifiers --
+export type LLMModel = "opus" | "sonnet" | "haiku" | "deepseek" | "codex";
+export type LLMPurpose =
+  | "prd_decomposition"
+  | "build"
+  | "review_quick"
+  | "review_adversarial"
+  | "review_deep"
+  | "fix_planning"
+  | "phase_report"
+  | "phase_advance";
+
+// =============================================================================
+// Core Entities
+// =============================================================================
+
+/** A managed project within a Paperclip parent project */
+export interface ManagedProject {
+  id: string;
+  /** Paperclip project ID this belongs to */
+  parentProjectId: string;
+  name: string;
+  /** Full PRD text pasted by the user */
+  prdText: string;
+  priority: ProjectPriority;
+  status: ProjectStatus;
+  /** Summary generated after PRD decomposition */
+  decompositionSummary: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A single build job decomposed from a PRD by Opus */
+export interface BuildJob {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string;
+  /** Files this job will create or modify (max 3) */
+  targetFiles: string[];
+  /** IDs of other BuildJobs that must complete first */
+  dependencies: string[];
+  status: BuildJobStatus;
+  /** PopeBot agent_job_id after dispatch */
+  popebotJobId: string | null;
+  /** GitHub PR URL if created */
+  prUrl: string | null;
+  dispatchedAt: string | null;
+  completedAt: string | null;
+}
+
+/** A pipeline execution run for a project */
+export interface PipelineRun {
+  id: string;
+  projectId: string;
+  status: PipelineStatus;
+  currentStep: PipelineStep;
+  reviewRound: number;
+  maxReviewRounds: number;
+  /** ID returned from RTX orchestrator */
+  rtxPipelineId: string | null;
+  startedAt: string;
+  completedAt: string | null;
+}
+
+/** An event emitted during pipeline execution */
+export interface PipelineEvent {
+  type:
+    | "build_started"
+    | "build_dispatched"
+    | "build_merged"
+    | "build_failed"
+    | "review_started"
+    | "review_complete"
+    | "fix_started"
+    | "fix_applied"
+    | "pipeline_complete"
+    | "pipeline_failed"
+    | "progress";
+  projectId: string;
+  pipelineRunId: string;
+  message: string;
+  details?: Record<string, unknown>;
+  timestamp: string;
+}
+
+/** Review result from any tier */
+export interface ReviewResult {
+  id: string;
+  projectId: string;
+  pipelineRunId: string;
+  tier: ReviewTier;
+  round: number;
+  verdict: ReviewVerdict;
+  summary: string;
+  findings: string[];
+  createdAt: string;
+}
+
+/** LLM usage record for cost tracking */
+export interface LLMUsage {
+  id: string;
+  projectId: string;
+  model: LLMModel;
+  purpose: LLMPurpose;
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCostUsd: number;
+  timestamp: string;
+}

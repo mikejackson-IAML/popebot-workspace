@@ -1,7 +1,7 @@
 {
-  "name": "paperclip-plugin-dev-department",
-  "version": "0.1.0",
-  "description": "Development Department plugin for Paperclip — phase-aware build governance",
+  "name": "paperclip-plugin-project-automation",
+  "version": "0.2.0",
+  "description": "Automated build governance — drop a PRD, walk away",
   "type": "module",
   "private": true,
   "exports": {
