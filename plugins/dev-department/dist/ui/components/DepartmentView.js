@@ -6,10 +6,10 @@ import PhaseList from "./PhaseList.js";
 import PhaseDetail from "./PhaseDetail.js";
 import { ConversationRefs } from "./ConversationRefs.js";
 const STATUS_COLORS = {
-    Draft: { bg: "#f3f4f6", text: "#6b7280" },
-    Active: { bg: "#dcfce7", text: "#16a34a" },
-    Blocked: { bg: "#fee2e2", text: "#dc2626" },
-    Archived: { bg: "#f3f4f6", text: "#9ca3af" },
+    Draft: { bg: "#374151", text: "#9ca3af" },
+    Active: { bg: "#064e3b", text: "#34d399" },
+    Blocked: { bg: "#7f1d1d", text: "#f87171" },
+    Archived: { bg: "#1f2937", text: "#6b7280" },
 };
 function StatusBadge({ status }) {
     const colors = STATUS_COLORS[status];
@@ -121,7 +121,7 @@ export default function DepartmentView() {
     // Phase detail view
     if (selectedProject && selectedPhase) {
         const phaseRefs = conversationRefs.filter((r) => r.scopeType === "phase" && r.scopeId === selectedPhase.id);
-        return (_jsxs("div", { style: { fontFamily: "system-ui, sans-serif", height: "100%" }, children: [_jsx("div", { style: { padding: "10px 16px", borderBottom: "1px solid #e5e7eb", display: "flex", gap: "8px", alignItems: "center" }, children: _jsxs("button", { onClick: () => setSelectedPhase(null), style: {
+        return (_jsxs("div", { style: { fontFamily: "system-ui, sans-serif", height: "100%" }, children: [_jsx("div", { style: { padding: "10px 16px", borderBottom: "1px solid #374151", display: "flex", gap: "8px", alignItems: "center" }, children: _jsxs("button", { onClick: () => setSelectedPhase(null), style: {
                             background: "none",
                             border: "none",
                             cursor: "pointer",
@@ -133,20 +133,20 @@ export default function DepartmentView() {
     // Project detail view
     if (selectedProject) {
         const projectRefs = conversationRefs.filter((r) => r.scopeType === "project" && r.scopeId === selectedProject.id);
-        return (_jsxs("div", { style: { fontFamily: "system-ui, sans-serif", height: "100%" }, children: [_jsx("div", { style: { padding: "10px 16px", borderBottom: "1px solid #e5e7eb" }, children: _jsx("button", { onClick: () => setSelectedProject(null), style: {
+        return (_jsxs("div", { style: { fontFamily: "system-ui, sans-serif", height: "100%" }, children: [_jsx("div", { style: { padding: "10px 16px", borderBottom: "1px solid #374151" }, children: _jsx("button", { onClick: () => setSelectedProject(null), style: {
                             background: "none",
                             border: "none",
                             cursor: "pointer",
                             color: "#2563eb",
                             fontSize: "14px",
                             padding: 0,
-                        }, children: "\u2190 Back to Projects" }) }), _jsx(ProjectHeader, { project: selectedProject, phases: phases, onSave: handleSaveProject, onCancel: () => setSelectedProject(null) }), phases.length > 0 && (_jsxs("div", { style: { padding: "8px 16px", display: "flex", alignItems: "center", gap: "8px" }, children: [_jsx("span", { style: { fontSize: "12px", fontWeight: 600, color: "#374151" }, children: "Active Phase:" }), _jsxs("select", { value: selectedProject.activePhaseId ?? "", onChange: (e) => handleSetActivePhase(e.target.value || null), style: {
+                        }, children: "\u2190 Back to Projects" }) }), _jsx(ProjectHeader, { project: selectedProject, phases: phases, onSave: handleSaveProject, onCancel: () => setSelectedProject(null) }), phases.length > 0 && (_jsxs("div", { style: { padding: "8px 16px", display: "flex", alignItems: "center", gap: "8px" }, children: [_jsx("span", { style: { fontSize: "12px", fontWeight: 600, color: "#cbd5e1" }, children: "Active Phase:" }), _jsxs("select", { value: selectedProject.activePhaseId ?? "", onChange: (e) => handleSetActivePhase(e.target.value || null), style: {
                                 padding: "4px 8px",
                                 border: "1px solid #d1d5db",
                                 borderRadius: "6px",
                                 fontSize: "12px",
-                                color: "#111827",
-                                backgroundColor: "#fff",
+                                color: "#e2e8f0",
+                                backgroundColor: "#0f172a",
                                 cursor: "pointer",
                             }, children: [_jsx("option", { value: "", children: "\u2014 None \u2014" }), [...phases]
                                     .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -155,11 +155,11 @@ export default function DepartmentView() {
     // List view
     return (_jsxs("div", { style: { fontFamily: "system-ui, sans-serif", height: "100%" }, children: [_jsxs("div", { style: {
                     padding: "12px 16px",
-                    borderBottom: "1px solid #e5e7eb",
+                    borderBottom: "1px solid #374151",
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                }, children: [_jsx("span", { style: { fontWeight: 700, fontSize: "16px", color: "#111827" }, children: "Development Department" }), _jsx("button", { onClick: handleCreateProject, style: {
+                }, children: [_jsx("span", { style: { fontWeight: 700, fontSize: "16px", color: "#e2e8f0" }, children: "Development Department" }), _jsx("button", { onClick: handleCreateProject, style: {
                             padding: "6px 14px",
                             backgroundColor: "#2563eb",
                             color: "#fff",
@@ -168,17 +168,17 @@ export default function DepartmentView() {
                             cursor: "pointer",
                             fontSize: "13px",
                             fontWeight: 500,
-                        }, children: "+ Create Project" })] }), projects.length === 0 ? (_jsx("div", { style: { padding: "32px 16px", textAlign: "center", color: "#9ca3af", fontSize: "14px" }, children: "No projects yet. Click \"Create Project\" to get started." })) : (_jsx("div", { style: { padding: "8px" }, children: projects.map((project) => (_jsxs("div", { onClick: () => handleSelectProject(project), style: {
+                        }, children: "+ Create Project" })] }), projects.length === 0 ? (_jsx("div", { style: { padding: "32px 16px", textAlign: "center", color: "#94a3b8", fontSize: "14px" }, children: "No projects yet. Click \"Create Project\" to get started." })) : (_jsx("div", { style: { padding: "8px" }, children: projects.map((project) => (_jsxs("div", { onClick: () => handleSelectProject(project), style: {
                         padding: "12px",
-                        border: "1px solid #e5e7eb",
+                        border: "1px solid #374151",
                         borderRadius: "8px",
                         marginBottom: "6px",
                         cursor: "pointer",
-                        backgroundColor: "#fff",
+                        backgroundColor: "#0f172a",
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
                         transition: "border-color 0.15s",
-                    }, onMouseEnter: (e) => (e.currentTarget.style.borderColor = "#93c5fd"), onMouseLeave: (e) => (e.currentTarget.style.borderColor = "#e5e7eb"), children: [_jsxs("div", { children: [_jsx("div", { style: { fontWeight: 600, fontSize: "14px", color: "#111827" }, children: project.name }), project.objective && (_jsx("div", { style: { fontSize: "12px", color: "#6b7280", marginTop: "2px" }, children: project.objective }))] }), _jsx(StatusBadge, { status: project.status })] }, project.id))) }))] }));
+                    }, onMouseEnter: (e) => (e.currentTarget.style.borderColor = "#93c5fd"), onMouseLeave: (e) => (e.currentTarget.style.borderColor = "#e5e7eb"), children: [_jsxs("div", { children: [_jsx("div", { style: { fontWeight: 600, fontSize: "14px", color: "#e2e8f0" }, children: project.name }), project.objective && (_jsx("div", { style: { fontSize: "12px", color: "#94a3b8", marginTop: "2px" }, children: project.objective }))] }), _jsx(StatusBadge, { status: project.status })] }, project.id))) }))] }));
 }
 //# sourceMappingURL=DepartmentView.js.map

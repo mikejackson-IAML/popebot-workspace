@@ -16,20 +16,20 @@ const LABEL_STYLE = {
     display: "block",
     fontSize: "12px",
     fontWeight: 600,
-    color: "#374151",
+    color: "#cbd5e1",
     marginBottom: "4px",
 };
 const INPUT_STYLE = {
     width: "100%",
     padding: "6px 10px",
-    border: "1px solid #d1d5db",
+    border: "1px solid #374151",
     borderRadius: "6px",
     fontSize: "13px",
     boxSizing: "border-box",
 };
 const SELECT_STYLE = {
     ...INPUT_STYLE,
-    background: "#fff",
+    background: "#1e293b",
 };
 const TEXTAREA_STYLE = {
     ...INPUT_STYLE,
@@ -97,7 +97,7 @@ function RefRow({ conversationRef: r, onUpdate, onDelete, }) {
                 borderRadius: "8px",
                 background: "#eff6ff",
                 marginBottom: "8px",
-            }, children: [_jsxs("div", { style: FIELD_STYLE, children: [_jsx("label", { style: LABEL_STYLE, children: "URL" }), _jsx("input", { style: INPUT_STYLE, type: "url", value: form.url, onChange: (e) => setForm((f) => ({ ...f, url: e.target.value })) })] }), _jsxs("div", { style: { display: "flex", gap: "10px", marginBottom: "10px" }, children: [_jsxs("div", { style: { flex: 1 }, children: [_jsx("label", { style: LABEL_STYLE, children: "System" }), _jsxs("select", { style: SELECT_STYLE, value: form.system, onChange: (e) => setForm((f) => ({ ...f, system: e.target.value })), children: [_jsx("option", { value: "Claude", children: "Claude" }), _jsx("option", { value: "ChatGPT", children: "ChatGPT" }), _jsx("option", { value: "Other", children: "Other" })] })] }), _jsxs("div", { style: { flex: 1 }, children: [_jsx("label", { style: LABEL_STYLE, children: "Role" }), _jsx("select", { style: SELECT_STYLE, value: form.role, onChange: (e) => setForm((f) => ({ ...f, role: e.target.value })), children: Object.keys(ROLE_LABELS).map((r) => (_jsx("option", { value: r, children: ROLE_LABELS[r] }, r))) })] })] }), _jsxs("div", { style: FIELD_STYLE, children: [_jsx("label", { style: LABEL_STYLE, children: "Notes" }), _jsx("textarea", { style: TEXTAREA_STYLE, value: form.notes, onChange: (e) => setForm((f) => ({ ...f, notes: e.target.value })) })] }), _jsxs("div", { style: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }, children: [_jsx("input", { id: `auth-edit-${r.id}`, type: "checkbox", checked: form.authoritative, onChange: (e) => setForm((f) => ({ ...f, authoritative: e.target.checked })) }), _jsx("label", { htmlFor: `auth-edit-${r.id}`, style: { fontSize: "13px", color: "#374151" }, children: "Authoritative source" })] }), _jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx("button", { onClick: handleSave, style: {
+            }, children: [_jsxs("div", { style: FIELD_STYLE, children: [_jsx("label", { style: LABEL_STYLE, children: "URL" }), _jsx("input", { style: INPUT_STYLE, type: "url", value: form.url, onChange: (e) => setForm((f) => ({ ...f, url: e.target.value })) })] }), _jsxs("div", { style: { display: "flex", gap: "10px", marginBottom: "10px" }, children: [_jsxs("div", { style: { flex: 1 }, children: [_jsx("label", { style: LABEL_STYLE, children: "System" }), _jsxs("select", { style: SELECT_STYLE, value: form.system, onChange: (e) => setForm((f) => ({ ...f, system: e.target.value })), children: [_jsx("option", { value: "Claude", children: "Claude" }), _jsx("option", { value: "ChatGPT", children: "ChatGPT" }), _jsx("option", { value: "Other", children: "Other" })] })] }), _jsxs("div", { style: { flex: 1 }, children: [_jsx("label", { style: LABEL_STYLE, children: "Role" }), _jsx("select", { style: SELECT_STYLE, value: form.role, onChange: (e) => setForm((f) => ({ ...f, role: e.target.value })), children: Object.keys(ROLE_LABELS).map((r) => (_jsx("option", { value: r, children: ROLE_LABELS[r] }, r))) })] })] }), _jsxs("div", { style: FIELD_STYLE, children: [_jsx("label", { style: LABEL_STYLE, children: "Notes" }), _jsx("textarea", { style: TEXTAREA_STYLE, value: form.notes, onChange: (e) => setForm((f) => ({ ...f, notes: e.target.value })) })] }), _jsxs("div", { style: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }, children: [_jsx("input", { id: `auth-edit-${r.id}`, type: "checkbox", checked: form.authoritative, onChange: (e) => setForm((f) => ({ ...f, authoritative: e.target.checked })) }), _jsx("label", { htmlFor: `auth-edit-${r.id}`, style: { fontSize: "13px", color: "#cbd5e1" }, children: "Authoritative source" })] }), _jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx("button", { onClick: handleSave, style: {
                                 padding: "6px 14px",
                                 background: "#2563eb",
                                 color: "#fff",
@@ -109,8 +109,8 @@ function RefRow({ conversationRef: r, onUpdate, onDelete, }) {
                             }, children: "Save" }), _jsx("button", { onClick: handleCancel, style: {
                                 padding: "6px 14px",
                                 background: "#f3f4f6",
-                                color: "#374151",
-                                border: "1px solid #d1d5db",
+                                color: "#cbd5e1",
+                                border: "1px solid #374151",
                                 borderRadius: "6px",
                                 fontSize: "13px",
                                 cursor: "pointer",
@@ -118,9 +118,9 @@ function RefRow({ conversationRef: r, onUpdate, onDelete, }) {
     }
     return (_jsxs("div", { style: {
             padding: "10px 12px",
-            border: "1px solid #e5e7eb",
+            border: "1px solid #374151",
             borderRadius: "8px",
-            background: "#fff",
+            background: "#1e293b",
             marginBottom: "8px",
         }, children: [_jsxs("div", { style: { display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }, children: [_jsx(SystemBadge, { system: r.system }), _jsx(RoleBadge, { role: r.role }), _jsx("a", { href: r.url, target: "_blank", rel: "noopener noreferrer", style: {
                             fontSize: "13px",
@@ -134,11 +134,11 @@ function RefRow({ conversationRef: r, onUpdate, onDelete, }) {
                         }, title: r.url, children: r.url }), r.authoritative && (_jsx("span", { title: "Authoritative source", style: { fontSize: "15px", lineHeight: 1 }, children: "\u2B50" })), _jsx("button", { onClick: () => setEditing(true), style: {
                             padding: "3px 10px",
                             fontSize: "12px",
-                            border: "1px solid #d1d5db",
+                            border: "1px solid #374151",
                             borderRadius: "5px",
                             background: "#f9fafb",
                             cursor: "pointer",
-                            color: "#374151",
+                            color: "#cbd5e1",
                         }, children: "Edit" }), _jsx("button", { onClick: () => onDelete(r.id), style: {
                             padding: "3px 10px",
                             fontSize: "12px",
@@ -150,7 +150,7 @@ function RefRow({ conversationRef: r, onUpdate, onDelete, }) {
                         }, children: "Delete" })] }), r.notes && (_jsx("div", { style: {
                     marginTop: "6px",
                     fontSize: "12px",
-                    color: "#6b7280",
+                    color: "#94a3b8",
                     paddingLeft: "2px",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -184,7 +184,7 @@ export function ConversationRefs({ references, scopeType, scopeId, onAdd, onUpda
                     alignItems: "center",
                     justifyContent: "space-between",
                     marginBottom: "10px",
-                }, children: [_jsx("span", { style: { fontSize: "14px", fontWeight: 700, color: "#111827" }, children: "Conversation References" }), !showForm && (_jsx("button", { onClick: () => setShowForm(true), style: {
+                }, children: [_jsx("span", { style: { fontSize: "14px", fontWeight: 700, color: "#e2e8f0" }, children: "Conversation References" }), !showForm && (_jsx("button", { onClick: () => setShowForm(true), style: {
                             padding: "5px 12px",
                             background: "#2563eb",
                             color: "#fff",
@@ -199,7 +199,7 @@ export function ConversationRefs({ references, scopeType, scopeId, onAdd, onUpda
                     borderRadius: "8px",
                     background: "#eff6ff",
                     marginBottom: "12px",
-                }, children: [_jsxs("div", { style: FIELD_STYLE, children: [_jsx("label", { style: LABEL_STYLE, children: "URL" }), _jsx("input", { style: INPUT_STYLE, type: "url", placeholder: "https://...", value: form.url, onChange: (e) => setForm((f) => ({ ...f, url: e.target.value })) })] }), _jsxs("div", { style: { display: "flex", gap: "10px", marginBottom: "10px" }, children: [_jsxs("div", { style: { flex: 1 }, children: [_jsx("label", { style: LABEL_STYLE, children: "System" }), _jsxs("select", { style: SELECT_STYLE, value: form.system, onChange: (e) => setForm((f) => ({ ...f, system: e.target.value })), children: [_jsx("option", { value: "Claude", children: "Claude" }), _jsx("option", { value: "ChatGPT", children: "ChatGPT" }), _jsx("option", { value: "Other", children: "Other" })] })] }), _jsxs("div", { style: { flex: 1 }, children: [_jsx("label", { style: LABEL_STYLE, children: "Role" }), _jsx("select", { style: SELECT_STYLE, value: form.role, onChange: (e) => setForm((f) => ({ ...f, role: e.target.value })), children: Object.keys(ROLE_LABELS).map((r) => (_jsx("option", { value: r, children: ROLE_LABELS[r] }, r))) })] })] }), _jsxs("div", { style: FIELD_STYLE, children: [_jsx("label", { style: LABEL_STYLE, children: "Notes" }), _jsx("textarea", { style: TEXTAREA_STYLE, placeholder: "Optional notes...", value: form.notes, onChange: (e) => setForm((f) => ({ ...f, notes: e.target.value })) })] }), _jsxs("div", { style: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }, children: [_jsx("input", { id: `auth-add-${scopeId}`, type: "checkbox", checked: form.authoritative, onChange: (e) => setForm((f) => ({ ...f, authoritative: e.target.checked })) }), _jsx("label", { htmlFor: `auth-add-${scopeId}`, style: { fontSize: "13px", color: "#374151" }, children: "Authoritative source" })] }), _jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx("button", { onClick: handleAdd, disabled: !form.url.trim(), style: {
+                }, children: [_jsxs("div", { style: FIELD_STYLE, children: [_jsx("label", { style: LABEL_STYLE, children: "URL" }), _jsx("input", { style: INPUT_STYLE, type: "url", placeholder: "https://...", value: form.url, onChange: (e) => setForm((f) => ({ ...f, url: e.target.value })) })] }), _jsxs("div", { style: { display: "flex", gap: "10px", marginBottom: "10px" }, children: [_jsxs("div", { style: { flex: 1 }, children: [_jsx("label", { style: LABEL_STYLE, children: "System" }), _jsxs("select", { style: SELECT_STYLE, value: form.system, onChange: (e) => setForm((f) => ({ ...f, system: e.target.value })), children: [_jsx("option", { value: "Claude", children: "Claude" }), _jsx("option", { value: "ChatGPT", children: "ChatGPT" }), _jsx("option", { value: "Other", children: "Other" })] })] }), _jsxs("div", { style: { flex: 1 }, children: [_jsx("label", { style: LABEL_STYLE, children: "Role" }), _jsx("select", { style: SELECT_STYLE, value: form.role, onChange: (e) => setForm((f) => ({ ...f, role: e.target.value })), children: Object.keys(ROLE_LABELS).map((r) => (_jsx("option", { value: r, children: ROLE_LABELS[r] }, r))) })] })] }), _jsxs("div", { style: FIELD_STYLE, children: [_jsx("label", { style: LABEL_STYLE, children: "Notes" }), _jsx("textarea", { style: TEXTAREA_STYLE, placeholder: "Optional notes...", value: form.notes, onChange: (e) => setForm((f) => ({ ...f, notes: e.target.value })) })] }), _jsxs("div", { style: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }, children: [_jsx("input", { id: `auth-add-${scopeId}`, type: "checkbox", checked: form.authoritative, onChange: (e) => setForm((f) => ({ ...f, authoritative: e.target.checked })) }), _jsx("label", { htmlFor: `auth-add-${scopeId}`, style: { fontSize: "13px", color: "#cbd5e1" }, children: "Authoritative source" })] }), _jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx("button", { onClick: handleAdd, disabled: !form.url.trim(), style: {
                                     padding: "6px 14px",
                                     background: form.url.trim() ? "#2563eb" : "#93c5fd",
                                     color: "#fff",
@@ -214,11 +214,11 @@ export function ConversationRefs({ references, scopeType, scopeId, onAdd, onUpda
                                 }, style: {
                                     padding: "6px 14px",
                                     background: "#f3f4f6",
-                                    color: "#374151",
-                                    border: "1px solid #d1d5db",
+                                    color: "#cbd5e1",
+                                    border: "1px solid #374151",
                                     borderRadius: "6px",
                                     fontSize: "13px",
                                     cursor: "pointer",
-                                }, children: "Cancel" })] })] })), references.length === 0 && !showForm && (_jsx("div", { style: { fontSize: "13px", color: "#9ca3af", padding: "8px 0" }, children: "No conversation references yet." })), references.map((r) => (_jsx(RefRow, { conversationRef: r, onUpdate: onUpdate, onDelete: onDelete }, r.id)))] }));
+                                }, children: "Cancel" })] })] })), references.length === 0 && !showForm && (_jsx("div", { style: { fontSize: "13px", color: "#94a3b8", padding: "8px 0" }, children: "No conversation references yet." })), references.map((r) => (_jsx(RefRow, { conversationRef: r, onUpdate: onUpdate, onDelete: onDelete }, r.id)))] }));
 }
 //# sourceMappingURL=ConversationRefs.js.map

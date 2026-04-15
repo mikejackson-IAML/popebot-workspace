@@ -17,16 +17,16 @@ export default function ProjectHeader({ project, phases, onSave, onCancel }) {
         onSave({ name, objective, status });
     };
     const isDirty = name !== project.name || objective !== project.objective || status !== project.status;
-    return (_jsxs("div", { style: { padding: "16px", borderBottom: "1px solid #e5e7eb" }, children: [_jsxs("div", { style: { display: "flex", alignItems: "flex-start", gap: "12px", marginBottom: "12px" }, children: [_jsx("input", { value: name, onChange: (e) => setName(e.target.value), style: {
+    return (_jsxs("div", { style: { padding: "16px", borderBottom: "1px solid #374151" }, children: [_jsxs("div", { style: { display: "flex", alignItems: "flex-start", gap: "12px", marginBottom: "12px" }, children: [_jsx("input", { value: name, onChange: (e) => setName(e.target.value), style: {
                             flex: 1,
                             fontSize: "20px",
                             fontWeight: 600,
-                            border: "1px solid #d1d5db",
+                            border: "1px solid #374151",
                             borderRadius: "6px",
                             padding: "6px 10px",
                             outline: "none",
                         }, placeholder: "Project name" }), _jsx("select", { value: status, onChange: (e) => setStatus(e.target.value), style: {
-                            border: "1px solid #d1d5db",
+                            border: "1px solid #374151",
                             borderRadius: "6px",
                             padding: "6px 10px",
                             fontSize: "14px",
@@ -36,7 +36,7 @@ export default function ProjectHeader({ project, phases, onSave, onCancel }) {
                             cursor: "pointer",
                         }, children: STATUS_OPTIONS.map((s) => (_jsx("option", { value: s, style: { color: statusColors[s] }, children: s }, s))) })] }), _jsx("textarea", { value: objective, onChange: (e) => setObjective(e.target.value), rows: 3, style: {
                     width: "100%",
-                    border: "1px solid #d1d5db",
+                    border: "1px solid #374151",
                     borderRadius: "6px",
                     padding: "8px 10px",
                     fontSize: "14px",
@@ -46,11 +46,11 @@ export default function ProjectHeader({ project, phases, onSave, onCancel }) {
                 }, placeholder: "Project objective" }), activePhase && (_jsxs("div", { style: {
                     marginTop: "10px",
                     fontSize: "13px",
-                    color: "#6b7280",
+                    color: "#94a3b8",
                     display: "flex",
                     alignItems: "center",
                     gap: "6px",
-                }, children: [_jsx("span", { style: { fontWeight: 600, color: "#374151" }, children: "Active phase:" }), _jsxs("span", { style: {
+                }, children: [_jsx("span", { style: { fontWeight: 600, color: "#cbd5e1" }, children: "Active phase:" }), _jsxs("span", { style: {
                             backgroundColor: "#eff6ff",
                             color: "#1d4ed8",
                             padding: "2px 8px",
@@ -67,9 +67,9 @@ export default function ProjectHeader({ project, phases, onSave, onCancel }) {
                             fontWeight: 500,
                         }, children: "Save" }), _jsx("button", { onClick: onCancel, style: {
                             padding: "6px 16px",
-                            backgroundColor: "#f3f4f6",
-                            color: "#374151",
-                            border: "1px solid #d1d5db",
+                            backgroundColor: "#1e293b",
+                            color: "#cbd5e1",
+                            border: "1px solid #374151",
                             borderRadius: "6px",
                             cursor: "pointer",
                             fontSize: "14px",

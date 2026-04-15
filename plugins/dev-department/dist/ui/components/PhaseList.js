@@ -30,7 +30,7 @@ export default function PhaseList({ phases, selectedPhaseId, onSelect, onAdd, on
                     justifyContent: "space-between",
                     alignItems: "center",
                     padding: "8px 16px 4px",
-                }, children: [_jsx("span", { style: { fontWeight: 600, fontSize: "13px", color: "#374151" }, children: "Phases" }), _jsx("button", { onClick: onAdd, style: {
+                }, children: [_jsx("span", { style: { fontWeight: 600, fontSize: "13px", color: "#cbd5e1" }, children: "Phases" }), _jsx("button", { onClick: onAdd, style: {
                             padding: "4px 12px",
                             backgroundColor: "#2563eb",
                             color: "#fff",
@@ -39,7 +39,7 @@ export default function PhaseList({ phases, selectedPhaseId, onSelect, onAdd, on
                             cursor: "pointer",
                             fontSize: "12px",
                             fontWeight: 500,
-                        }, children: "+ Add Phase" })] }), sorted.length === 0 ? (_jsx("div", { style: { padding: "24px 16px", textAlign: "center", color: "#9ca3af", fontSize: "14px" }, children: "No phases yet. Click \"Add Phase\" to get started." })) : (_jsx("div", { style: { padding: "4px 16px 12px" }, children: sorted.map((phase, index) => {
+                        }, children: "+ Add Phase" })] }), sorted.length === 0 ? (_jsx("div", { style: { padding: "24px 16px", textAlign: "center", color: "#94a3b8", fontSize: "14px" }, children: "No phases yet. Click \"Add Phase\" to get started." })) : (_jsx("div", { style: { padding: "4px 16px 12px" }, children: sorted.map((phase, index) => {
                     const isSelected = phase.id === selectedPhaseId;
                     const freezeInfo = FREEZE_ICONS[phase.freezeState];
                     const statusColors = PHASE_STATUS_COLORS[phase.status];
@@ -73,7 +73,7 @@ export default function PhaseList({ phases, selectedPhaseId, onSelect, onAdd, on
                                     fontSize: "12px",
                                     fontWeight: 700,
                                     flexShrink: 0,
-                                }, children: phase.phaseNumber }), _jsx("div", { style: { flex: 1, minWidth: 0 }, children: _jsxs("div", { style: { display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }, children: [_jsx("span", { style: { fontWeight: 600, fontSize: "13px", color: "#111827" }, children: phase.title || "Untitled Phase" }), _jsx("span", { style: {
+                                }, children: phase.phaseNumber }), _jsx("div", { style: { flex: 1, minWidth: 0 }, children: _jsxs("div", { style: { display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }, children: [_jsx("span", { style: { fontWeight: 600, fontSize: "13px", color: "#e2e8f0" }, children: phase.title || "Untitled Phase" }), _jsx("span", { style: {
                                                 fontSize: "11px",
                                                 padding: "1px 7px",
                                                 borderRadius: "10px",
