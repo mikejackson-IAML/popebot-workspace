@@ -1,5 +1,5 @@
 const manifest = {
-    id: "project-automation",
+    id: "dev-department",
     apiVersion: 1,
     version: "0.2.0",
     displayName: "Project Automation",
