@@ -84,8 +84,8 @@ function TextArea({ value, onChange, placeholder, rows = 3 }: { value: string; o
   return <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows} style={{ width: "100%", padding: "8px 12px", backgroundColor: COLORS.bgInput, color: COLORS.text, border: `1px solid ${COLORS.borderLight}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box", resize: "vertical" }} />;
 }
 
-function Select({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
-  return <select value={value} onChange={e => onChange(e.target.value)} style={{ padding: "8px 12px", backgroundColor: COLORS.bgInput, color: COLORS.text, border: `1px solid ${COLORS.borderLight}`, borderRadius: "6px", fontSize: "14px" }}>{options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select>;
+function Select({ value, onChange, options, disabled = false }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; disabled?: boolean }) {
+  return <select value={value} onChange={e => onChange(e.target.value)} disabled={disabled} style={{ width: "100%", padding: "8px 12px", backgroundColor: COLORS.bgInput, color: COLORS.text, border: `1px solid ${COLORS.borderLight}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box", opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer" }}>{options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select>;
 }
 
 function Card({ children, onClick, style }: { children: React.ReactNode; onClick?: () => void; style?: any }) {
@@ -130,16 +130,16 @@ function PhaseDetailPanel({ phase, onSave, onBack }: { phase: Phase; onSave: (up
       {isLocked && <Card style={{ marginBottom: "16px", borderColor: COLORS.warning }}><span style={{ color: COLORS.warning }}>⚠️ This phase is locked. Change freeze state to edit.</span></Card>}
 
       <div style={{ display: "grid", gap: "12px" }}>
-        <div><label style={{ color: COLORS.textMuted, fontSize: "12px" }}>Title</label><Input value={title} onChange={setTitle} placeholder="Phase title" /></div>
-        <div><label style={{ color: COLORS.textMuted, fontSize: "12px" }}>Objective</label><TextArea value={objective} onChange={setObjective} placeholder="What this phase achieves" /></div>
-        <div><label style={{ color: COLORS.textMuted, fontSize: "12px" }}>Description</label><TextArea value={description} onChange={setDescription} placeholder="Detailed description" rows={4} /></div>
-        <div style={{ display: "flex", gap: "16px" }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ color: COLORS.textMuted, fontSize: "12px" }}>Status</label>
-            <Select value={status} onChange={v => setStatus(v as PhaseStatus)} options={allowed.map(s => ({ value: s, label: s }))} />
+        <div><label style={{ display: "block", color: COLORS.textMuted, fontSize: "12px", marginBottom: "4px" }}>Title</label><Input value={title} onChange={setTitle} placeholder="Phase title" /></div>
+        <div><label style={{ display: "block", color: COLORS.textMuted, fontSize: "12px", marginBottom: "4px" }}>Objective</label><TextArea value={objective} onChange={setObjective} placeholder="What this phase achieves" /></div>
+        <div><label style={{ display: "block", color: COLORS.textMuted, fontSize: "12px", marginBottom: "4px" }}>Description</label><TextArea value={description} onChange={setDescription} placeholder="Detailed description" rows={4} /></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+          <div>
+            <label style={{ display: "block", color: COLORS.textMuted, fontSize: "12px", marginBottom: "6px" }}>Status</label>
+            <Select value={status} onChange={v => setStatus(v as PhaseStatus)} options={allowed.map(s => ({ value: s, label: s }))} disabled={isLocked} />
           </div>
-          <div style={{ flex: 1 }}>
-            <label style={{ color: COLORS.textMuted, fontSize: "12px" }}>Freeze State</label>
+          <div>
+            <label style={{ display: "block", color: COLORS.textMuted, fontSize: "12px", marginBottom: "6px" }}>Freeze State</label>
             <Select value={freezeState} onChange={v => setFreezeState(v as FreezeState)} options={[
               { value: "EditableDownstream", label: "Editable" },
               { value: "Locked", label: "Locked" },
@@ -148,9 +148,9 @@ function PhaseDetailPanel({ phase, onSave, onBack }: { phase: Phase; onSave: (up
             ]} />
           </div>
         </div>
-        <div><label style={{ color: COLORS.textMuted, fontSize: "12px" }}>Prerequisites</label><TextArea value={prerequisites} onChange={setPrerequisites} placeholder="What must be done first" /></div>
-        <div><label style={{ color: COLORS.textMuted, fontSize: "12px" }}>Success Criteria</label><TextArea value={successCriteria} onChange={setSuccessCriteria} placeholder="How we know this phase is done" /></div>
-        <div><label style={{ color: COLORS.textMuted, fontSize: "12px" }}>Risk Notes</label><TextArea value={riskNotes} onChange={setRiskNotes} placeholder="Known risks" /></div>
+        <div><label style={{ display: "block", color: COLORS.textMuted, fontSize: "12px", marginBottom: "4px" }}>Prerequisites</label><TextArea value={prerequisites} onChange={setPrerequisites} placeholder="What must be done first" /></div>
+        <div><label style={{ display: "block", color: COLORS.textMuted, fontSize: "12px", marginBottom: "4px" }}>Success Criteria</label><TextArea value={successCriteria} onChange={setSuccessCriteria} placeholder="How we know this phase is done" /></div>
+        <div><label style={{ display: "block", color: COLORS.textMuted, fontSize: "12px", marginBottom: "4px" }}>Risk Notes</label><TextArea value={riskNotes} onChange={setRiskNotes} placeholder="Known risks" /></div>
       </div>
 
       <div style={{ marginTop: "16px", display: "flex", gap: "8px" }}>
@@ -282,8 +282,8 @@ function DepartmentView() {
         {editingProject && (
           <Card style={{ marginBottom: "16px" }}>
             <div style={{ display: "grid", gap: "12px" }}>
-              <div><label style={{ color: COLORS.textMuted, fontSize: "12px" }}>Objective</label><TextArea value={projectObjective} onChange={setProjectObjective} placeholder="Project objective" /></div>
-              <div><label style={{ color: COLORS.textMuted, fontSize: "12px" }}>Status</label>
+              <div><label style={{ display: "block", color: COLORS.textMuted, fontSize: "12px", marginBottom: "4px" }}>Objective</label><TextArea value={projectObjective} onChange={setProjectObjective} placeholder="Project objective" /></div>
+              <div><label style={{ display: "block", color: COLORS.textMuted, fontSize: "12px", marginBottom: "4px" }}>Status</label>
                 <Select value={projectStatus} onChange={setProjectStatus} options={["Draft","Active","Blocked","Archived"].map(s => ({ value: s, label: s }))} />
               </div>
               <div style={{ display: "flex", gap: "8px" }}>
@@ -372,8 +372,9 @@ function DepartmentView() {
 
 export function DepartmentSidebar({ context }: PluginProjectSidebarItemProps) {
   return (
-    <div style={{ padding: "12px", color: "#22d3ee" }}>
-      <strong>Dev Department</strong>
+    <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", color: COLORS.text, fontSize: "14px", fontWeight: 500 }}>
+      <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "24px", height: "24px", borderRadius: "6px", backgroundColor: COLORS.accent, color: "#fff", fontSize: "13px", fontWeight: 700, flexShrink: 0 }}>D</span>
+      <span>Dev Department</span>
     </div>
   );
 }
