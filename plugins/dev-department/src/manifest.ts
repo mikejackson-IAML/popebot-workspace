@@ -7,7 +7,7 @@ const manifest: PaperclipPluginManifestV1 = {
   displayName: "Development Department",
   description: "Phase-aware build governance for phased architecture projects",
   author: "Mike Jackson",
-  categories: ["productivity"],
+  categories: ["workspace"],
   capabilities: ["plugin.state.read", "plugin.state.write"],
   entrypoints: {
     worker: "./dist/worker.js",
