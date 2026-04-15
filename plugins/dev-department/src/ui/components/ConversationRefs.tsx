@@ -28,14 +28,14 @@ const LABEL_STYLE: React.CSSProperties = {
   display: "block",
   fontSize: "12px",
   fontWeight: 600,
-  color: "#374151",
+  color: "#cbd5e1",
   marginBottom: "4px",
 };
 
 const INPUT_STYLE: React.CSSProperties = {
   width: "100%",
   padding: "6px 10px",
-  border: "1px solid #d1d5db",
+  border: "1px solid #374151",
   borderRadius: "6px",
   fontSize: "13px",
   boxSizing: "border-box",
@@ -43,7 +43,7 @@ const INPUT_STYLE: React.CSSProperties = {
 
 const SELECT_STYLE: React.CSSProperties = {
   ...INPUT_STYLE,
-  background: "#fff",
+  background: "#1e293b",
 };
 
 const TEXTAREA_STYLE: React.CSSProperties = {
@@ -208,7 +208,7 @@ function RefRow({
             checked={form.authoritative}
             onChange={(e) => setForm((f) => ({ ...f, authoritative: e.target.checked }))}
           />
-          <label htmlFor={`auth-edit-${r.id}`} style={{ fontSize: "13px", color: "#374151" }}>
+          <label htmlFor={`auth-edit-${r.id}`} style={{ fontSize: "13px", color: "#cbd5e1" }}>
             Authoritative source
           </label>
         </div>
@@ -233,8 +233,8 @@ function RefRow({
             style={{
               padding: "6px 14px",
               background: "#f3f4f6",
-              color: "#374151",
-              border: "1px solid #d1d5db",
+              color: "#cbd5e1",
+              border: "1px solid #374151",
               borderRadius: "6px",
               fontSize: "13px",
               cursor: "pointer",
@@ -251,9 +251,9 @@ function RefRow({
     <div
       style={{
         padding: "10px 12px",
-        border: "1px solid #e5e7eb",
+        border: "1px solid #374151",
         borderRadius: "8px",
-        background: "#fff",
+        background: "#1e293b",
         marginBottom: "8px",
       }}
     >
@@ -288,11 +288,11 @@ function RefRow({
           style={{
             padding: "3px 10px",
             fontSize: "12px",
-            border: "1px solid #d1d5db",
+            border: "1px solid #374151",
             borderRadius: "5px",
             background: "#f9fafb",
             cursor: "pointer",
-            color: "#374151",
+            color: "#cbd5e1",
           }}
         >
           Edit
@@ -317,7 +317,7 @@ function RefRow({
           style={{
             marginTop: "6px",
             fontSize: "12px",
-            color: "#6b7280",
+            color: "#94a3b8",
             paddingLeft: "2px",
             overflow: "hidden",
             textOverflow: "ellipsis",
@@ -364,7 +364,7 @@ export function ConversationRefs({ references, scopeType, scopeId, onAdd, onUpda
           marginBottom: "10px",
         }}
       >
-        <span style={{ fontSize: "14px", fontWeight: 700, color: "#111827" }}>
+        <span style={{ fontSize: "14px", fontWeight: 700, color: "#e2e8f0" }}>
           Conversation References
         </span>
         {!showForm && (
@@ -454,7 +454,7 @@ export function ConversationRefs({ references, scopeType, scopeId, onAdd, onUpda
               checked={form.authoritative}
               onChange={(e) => setForm((f) => ({ ...f, authoritative: e.target.checked }))}
             />
-            <label htmlFor={`auth-add-${scopeId}`} style={{ fontSize: "13px", color: "#374151" }}>
+            <label htmlFor={`auth-add-${scopeId}`} style={{ fontSize: "13px", color: "#cbd5e1" }}>
               Authoritative source
             </label>
           </div>
@@ -483,8 +483,8 @@ export function ConversationRefs({ references, scopeType, scopeId, onAdd, onUpda
               style={{
                 padding: "6px 14px",
                 background: "#f3f4f6",
-                color: "#374151",
-                border: "1px solid #d1d5db",
+                color: "#cbd5e1",
+                border: "1px solid #374151",
                 borderRadius: "6px",
                 fontSize: "13px",
                 cursor: "pointer",
@@ -497,7 +497,7 @@ export function ConversationRefs({ references, scopeType, scopeId, onAdd, onUpda
       )}
 
       {references.length === 0 && !showForm && (
-        <div style={{ fontSize: "13px", color: "#9ca3af", padding: "8px 0" }}>
+        <div style={{ fontSize: "13px", color: "#94a3b8", padding: "8px 0" }}>
           No conversation references yet.
         </div>
       )}

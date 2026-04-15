@@ -61,7 +61,7 @@ export default function PhaseList({
         alignItems: "center",
         padding: "8px 16px 4px",
       }}>
-        <span style={{ fontWeight: 600, fontSize: "13px", color: "#374151" }}>Phases</span>
+        <span style={{ fontWeight: 600, fontSize: "13px", color: "#cbd5e1" }}>Phases</span>
         <button
           onClick={onAdd}
           style={{
@@ -80,7 +80,7 @@ export default function PhaseList({
       </div>
 
       {sorted.length === 0 ? (
-        <div style={{ padding: "24px 16px", textAlign: "center", color: "#9ca3af", fontSize: "14px" }}>
+        <div style={{ padding: "24px 16px", textAlign: "center", color: "#94a3b8", fontSize: "14px" }}>
           No phases yet. Click "Add Phase" to get started.
         </div>
       ) : (
@@ -134,7 +134,7 @@ export default function PhaseList({
                 {/* Title + badges */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                    <span style={{ fontWeight: 600, fontSize: "13px", color: "#111827" }}>
+                    <span style={{ fontWeight: 600, fontSize: "13px", color: "#e2e8f0" }}>
                       {phase.title || "Untitled Phase"}
                     </span>
                     {/* Status badge */}

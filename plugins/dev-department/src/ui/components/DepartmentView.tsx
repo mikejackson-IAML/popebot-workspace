@@ -8,10 +8,10 @@ import { ConversationRefs } from "./ConversationRefs.js";
 
 
 const STATUS_COLORS: Record<ProjectStatus, { bg: string; text: string }> = {
-  Draft:    { bg: "#f3f4f6", text: "#6b7280" },
-  Active:   { bg: "#dcfce7", text: "#16a34a" },
-  Blocked:  { bg: "#fee2e2", text: "#dc2626" },
-  Archived: { bg: "#f3f4f6", text: "#9ca3af" },
+  Draft:    { bg: "#374151", text: "#9ca3af" },
+  Active:   { bg: "#064e3b", text: "#34d399" },
+  Blocked:  { bg: "#7f1d1d", text: "#f87171" },
+  Archived: { bg: "#1f2937", text: "#6b7280" },
 };
 
 function StatusBadge({ status }: { status: ProjectStatus }) {
@@ -152,7 +152,7 @@ export default function DepartmentView() {
 
     return (
       <div style={{ fontFamily: "system-ui, sans-serif", height: "100%" }}>
-        <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb", display: "flex", gap: "8px", alignItems: "center" }}>
+        <div style={{ padding: "10px 16px", borderBottom: "1px solid #374151", display: "flex", gap: "8px", alignItems: "center" }}>
           <button
             onClick={() => setSelectedPhase(null)}
             style={{
@@ -192,7 +192,7 @@ export default function DepartmentView() {
 
     return (
       <div style={{ fontFamily: "system-ui, sans-serif", height: "100%" }}>
-        <div style={{ padding: "10px 16px", borderBottom: "1px solid #e5e7eb" }}>
+        <div style={{ padding: "10px 16px", borderBottom: "1px solid #374151" }}>
           <button
             onClick={() => setSelectedProject(null)}
             style={{
@@ -218,7 +218,7 @@ export default function DepartmentView() {
         {/* Active phase selector */}
         {phases.length > 0 && (
           <div style={{ padding: "8px 16px", display: "flex", alignItems: "center", gap: "8px" }}>
-            <span style={{ fontSize: "12px", fontWeight: 600, color: "#374151" }}>Active Phase:</span>
+            <span style={{ fontSize: "12px", fontWeight: 600, color: "#cbd5e1" }}>Active Phase:</span>
             <select
               value={selectedProject.activePhaseId ?? ""}
               onChange={(e) => handleSetActivePhase(e.target.value || null)}
@@ -227,8 +227,8 @@ export default function DepartmentView() {
                 border: "1px solid #d1d5db",
                 borderRadius: "6px",
                 fontSize: "12px",
-                color: "#111827",
-                backgroundColor: "#fff",
+                color: "#e2e8f0",
+                backgroundColor: "#0f172a",
                 cursor: "pointer",
               }}
             >
@@ -270,12 +270,12 @@ export default function DepartmentView() {
     <div style={{ fontFamily: "system-ui, sans-serif", height: "100%" }}>
       <div style={{
         padding: "12px 16px",
-        borderBottom: "1px solid #e5e7eb",
+        borderBottom: "1px solid #374151",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
       }}>
-        <span style={{ fontWeight: 700, fontSize: "16px", color: "#111827" }}>
+        <span style={{ fontWeight: 700, fontSize: "16px", color: "#e2e8f0" }}>
           Development Department
         </span>
         <button
@@ -296,7 +296,7 @@ export default function DepartmentView() {
       </div>
 
       {projects.length === 0 ? (
-        <div style={{ padding: "32px 16px", textAlign: "center", color: "#9ca3af", fontSize: "14px" }}>
+        <div style={{ padding: "32px 16px", textAlign: "center", color: "#94a3b8", fontSize: "14px" }}>
           No projects yet. Click "Create Project" to get started.
         </div>
       ) : (
@@ -307,11 +307,11 @@ export default function DepartmentView() {
               onClick={() => handleSelectProject(project)}
               style={{
                 padding: "12px",
-                border: "1px solid #e5e7eb",
+                border: "1px solid #374151",
                 borderRadius: "8px",
                 marginBottom: "6px",
                 cursor: "pointer",
-                backgroundColor: "#fff",
+                backgroundColor: "#0f172a",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
@@ -321,11 +321,11 @@ export default function DepartmentView() {
               onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#e5e7eb")}
             >
               <div>
-                <div style={{ fontWeight: 600, fontSize: "14px", color: "#111827" }}>
+                <div style={{ fontWeight: 600, fontSize: "14px", color: "#e2e8f0" }}>
                   {project.name}
                 </div>
                 {project.objective && (
-                  <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "2px" }}>
+                  <div style={{ fontSize: "12px", color: "#94a3b8", marginTop: "2px" }}>
                     {project.objective}
                   </div>
                 )}

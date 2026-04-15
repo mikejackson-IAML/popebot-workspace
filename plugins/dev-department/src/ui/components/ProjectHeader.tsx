@@ -33,7 +33,7 @@ export default function ProjectHeader({ project, phases, onSave, onCancel }: Pro
     name !== project.name || objective !== project.objective || status !== project.status;
 
   return (
-    <div style={{ padding: "16px", borderBottom: "1px solid #e5e7eb" }}>
+    <div style={{ padding: "16px", borderBottom: "1px solid #374151" }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", marginBottom: "12px" }}>
         <input
           value={name}
@@ -42,7 +42,7 @@ export default function ProjectHeader({ project, phases, onSave, onCancel }: Pro
             flex: 1,
             fontSize: "20px",
             fontWeight: 600,
-            border: "1px solid #d1d5db",
+            border: "1px solid #374151",
             borderRadius: "6px",
             padding: "6px 10px",
             outline: "none",
@@ -53,7 +53,7 @@ export default function ProjectHeader({ project, phases, onSave, onCancel }: Pro
           value={status}
           onChange={(e) => setStatus(e.target.value as ProjectStatus)}
           style={{
-            border: "1px solid #d1d5db",
+            border: "1px solid #374151",
             borderRadius: "6px",
             padding: "6px 10px",
             fontSize: "14px",
@@ -77,7 +77,7 @@ export default function ProjectHeader({ project, phases, onSave, onCancel }: Pro
         rows={3}
         style={{
           width: "100%",
-          border: "1px solid #d1d5db",
+          border: "1px solid #374151",
           borderRadius: "6px",
           padding: "8px 10px",
           fontSize: "14px",
@@ -93,13 +93,13 @@ export default function ProjectHeader({ project, phases, onSave, onCancel }: Pro
           style={{
             marginTop: "10px",
             fontSize: "13px",
-            color: "#6b7280",
+            color: "#94a3b8",
             display: "flex",
             alignItems: "center",
             gap: "6px",
           }}
         >
-          <span style={{ fontWeight: 600, color: "#374151" }}>Active phase:</span>
+          <span style={{ fontWeight: 600, color: "#cbd5e1" }}>Active phase:</span>
           <span style={{
             backgroundColor: "#eff6ff",
             color: "#1d4ed8",
@@ -133,9 +133,9 @@ export default function ProjectHeader({ project, phases, onSave, onCancel }: Pro
           onClick={onCancel}
           style={{
             padding: "6px 16px",
-            backgroundColor: "#f3f4f6",
-            color: "#374151",
-            border: "1px solid #d1d5db",
+            backgroundColor: "#1e293b",
+            color: "#cbd5e1",
+            border: "1px solid #374151",
             borderRadius: "6px",
             cursor: "pointer",
             fontSize: "14px",

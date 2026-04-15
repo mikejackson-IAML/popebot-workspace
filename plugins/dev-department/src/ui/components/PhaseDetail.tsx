@@ -25,18 +25,18 @@ const LABEL_STYLE: React.CSSProperties = {
   display: "block",
   fontSize: "12px",
   fontWeight: 600,
-  color: "#374151",
+  color: "#cbd5e1",
   marginBottom: "4px",
 };
 
 const INPUT_STYLE: React.CSSProperties = {
   width: "100%",
   padding: "7px 10px",
-  border: "1px solid #d1d5db",
+  border: "1px solid #374151",
   borderRadius: "6px",
   fontSize: "13px",
-  color: "#111827",
-  backgroundColor: "#fff",
+  color: "#e2e8f0",
+  backgroundColor: "#0f172a",
   boxSizing: "border-box",
 };
 
@@ -59,36 +59,36 @@ const FIELD_STYLE: React.CSSProperties = {
 const SECTION_HEADING: React.CSSProperties = {
   fontSize: "13px",
   fontWeight: 700,
-  color: "#374151",
+  color: "#cbd5e1",
   margin: "20px 0 10px",
   paddingBottom: "4px",
-  borderBottom: "1px solid #e5e7eb",
+  borderBottom: "1px solid #374151",
 };
 
 const READONLY_BLOCK: React.CSSProperties = {
   padding: "10px 12px",
-  border: "1px solid #e5e7eb",
+  border: "1px solid #374151",
   borderRadius: "6px",
-  backgroundColor: "#f9fafb",
+  backgroundColor: "#1e293b",
   fontSize: "13px",
-  color: "#6b7280",
+  color: "#94a3b8",
 };
 
 const GRAYED_BLOCK: React.CSSProperties = {
   padding: "12px",
   border: "1px dashed #d1d5db",
   borderRadius: "6px",
-  backgroundColor: "#f9fafb",
+  backgroundColor: "#1e293b",
   fontSize: "13px",
-  color: "#9ca3af",
+  color: "#94a3b8",
   fontStyle: "italic",
 };
 
 const BTN_SECONDARY: React.CSSProperties = {
   padding: "5px 12px",
-  backgroundColor: "#f3f4f6",
-  color: "#374151",
-  border: "1px solid #d1d5db",
+  backgroundColor: "#1e293b",
+  color: "#cbd5e1",
+  border: "1px solid #374151",
   borderRadius: "6px",
   cursor: "pointer",
   fontSize: "12px",
@@ -177,7 +177,7 @@ export default function PhaseDetail({
         <div style={{ ...READONLY_BLOCK, display: "inline-block", minWidth: "48px", textAlign: "center" }}>
           {phase.phaseNumber}
         </div>
-        <div style={{ marginTop: "4px", fontSize: "11px", color: "#9ca3af" }}>
+        <div style={{ marginTop: "4px", fontSize: "11px", color: "#94a3b8" }}>
           Ordering is controlled by Sort Order
         </div>
       </div>
@@ -293,9 +293,9 @@ export default function PhaseDetail({
           onClick={onCancel}
           style={{
             padding: "7px 18px",
-            backgroundColor: "#f3f4f6",
-            color: "#374151",
-            border: "1px solid #d1d5db",
+            backgroundColor: "#1e293b",
+            color: "#cbd5e1",
+            border: "1px solid #374151",
             borderRadius: "6px",
             cursor: "pointer",
             fontSize: "13px",
@@ -310,7 +310,7 @@ export default function PhaseDetail({
             style={{
               marginLeft: "auto",
               padding: "7px 14px",
-              backgroundColor: "#fff",
+              backgroundColor: "#0f172a",
               color: "#dc2626",
               border: "1px solid #fca5a5",
               borderRadius: "6px",
@@ -363,7 +363,7 @@ export default function PhaseDetail({
       </div>
 
       {showSpecForm && (
-        <div style={{ marginBottom: "12px", padding: "12px", border: "1px solid #d1d5db", borderRadius: "6px", backgroundColor: "#f9fafb" }}>
+        <div style={{ marginBottom: "12px", padding: "12px", border: "1px solid #374151", borderRadius: "6px", backgroundColor: "#1e293b" }}>
           <div style={FIELD_STYLE}>
             <label style={LABEL_STYLE}>Title</label>
             <input
@@ -410,7 +410,7 @@ export default function PhaseDetail({
 
       {spec ? (
         <div style={READONLY_BLOCK}>
-          <div style={{ fontWeight: 600, color: "#111827", marginBottom: "4px" }}>
+          <div style={{ fontWeight: 600, color: "#e2e8f0", marginBottom: "4px" }}>
             {spec.title || "Untitled Spec"}
           </div>
           <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", fontSize: "12px" }}>
@@ -421,11 +421,11 @@ export default function PhaseDetail({
           {spec.sourceRef && (
             <div style={{ marginTop: "6px", fontSize: "12px" }}>
               <strong>Source:</strong>{" "}
-              <span style={{ color: "#6b7280", wordBreak: "break-all" }}>{spec.sourceRef}</span>
+              <span style={{ color: "#94a3b8", wordBreak: "break-all" }}>{spec.sourceRef}</span>
             </div>
           )}
           {spec.notes && (
-            <div style={{ marginTop: "6px", fontSize: "12px", color: "#6b7280" }}>{spec.notes}</div>
+            <div style={{ marginTop: "6px", fontSize: "12px", color: "#94a3b8" }}>{spec.notes}</div>
           )}
         </div>
       ) : !showSpecForm ? (
@@ -443,7 +443,7 @@ export default function PhaseDetail({
       </div>
 
       {showPRDForm && (
-        <div style={{ marginBottom: "12px", padding: "12px", border: "1px solid #d1d5db", borderRadius: "6px", backgroundColor: "#f9fafb" }}>
+        <div style={{ marginBottom: "12px", padding: "12px", border: "1px solid #374151", borderRadius: "6px", backgroundColor: "#1e293b" }}>
           <div style={FIELD_STYLE}>
             <label style={LABEL_STYLE}>Title</label>
             <input
@@ -490,7 +490,7 @@ export default function PhaseDetail({
 
       {prd ? (
         <div style={READONLY_BLOCK}>
-          <div style={{ fontWeight: 600, color: "#111827", marginBottom: "4px" }}>
+          <div style={{ fontWeight: 600, color: "#e2e8f0", marginBottom: "4px" }}>
             {prd.title || "Untitled PRD"}
           </div>
           <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", fontSize: "12px" }}>
@@ -500,17 +500,17 @@ export default function PhaseDetail({
           {prd.sourceRef && (
             <div style={{ marginTop: "6px", fontSize: "12px" }}>
               <strong>Source:</strong>{" "}
-              <span style={{ color: "#6b7280", wordBreak: "break-all" }}>{prd.sourceRef}</span>
+              <span style={{ color: "#94a3b8", wordBreak: "break-all" }}>{prd.sourceRef}</span>
             </div>
           )}
           {prd.deviationNotes && (
             <div style={{ marginTop: "6px", fontSize: "12px" }}>
               <strong>Deviation Notes:</strong>{" "}
-              <span style={{ color: "#6b7280" }}>{prd.deviationNotes}</span>
+              <span style={{ color: "#94a3b8" }}>{prd.deviationNotes}</span>
             </div>
           )}
           {prd.notes && (
-            <div style={{ marginTop: "6px", fontSize: "12px", color: "#6b7280" }}>{prd.notes}</div>
+            <div style={{ marginTop: "6px", fontSize: "12px", color: "#94a3b8" }}>{prd.notes}</div>
           )}
         </div>
       ) : !showPRDForm ? (
