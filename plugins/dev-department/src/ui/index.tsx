@@ -1,9 +1,34 @@
 import { useState, useEffect } from "react";
 import type { PluginProjectSidebarItemProps, PluginDetailTabProps } from "@paperclipai/plugin-sdk/ui";
-import { store } from "../worker/state.js";
-import type { DevProject, Phase, PhaseStatus, FreezeState, Spec, PRD, ConversationReference } from "../worker/types.js";
-import { VALID_TRANSITIONS } from "../worker/messages.js";
+// store runs in worker, not UI — use local state
+// Local in-memory store for UI (persistence comes later via plugin SDK messages)
+const localProjects = new Map<string, any>();
+const localPhases = new Map<string, any>();
+const localStore = {
+  listProjects: () => Array.from(localProjects.values()),
+  createProject: (data: any) => { const p = { id: crypto.randomUUID(), ...data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; localProjects.set(p.id, p); return p; },
+  updateProject: (id: string, data: any) => { const p = localProjects.get(id); if (!p) throw new Error("Not found"); const u = { ...p, ...data, updatedAt: new Date().toISOString() }; localProjects.set(id, u); return u; },
+  deleteProject: (id: string) => { localProjects.delete(id); for (const [k,v] of localPhases) { if ((v as any).projectId === id) localPhases.delete(k); } },
+  getPhasesByProject: (pid: string) => Array.from(localPhases.values()).filter((p: any) => p.projectId === pid).sort((a: any, b: any) => a.sortOrder - b.sortOrder),
+  createPhase: (data: any) => { const p = { id: crypto.randomUUID(), ...data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; localPhases.set(p.id, p); return p; },
+  updatePhase: (id: string, data: any) => {
+    const p = localPhases.get(id);
+    if (!p) throw new Error("Not found");
+    if (p.freezeState === "Locked" && Object.keys(data).some((k: string) => k !== "freezeState")) throw new Error("Phase is locked");
+    if (data.status && data.status !== p.status) { const allowed = VALID_TRANSITIONS[p.status] || []; if (!allowed.includes(data.status)) throw new Error("Invalid transition: " + p.status + " → " + data.status); }
+    const u = { ...p, ...data, updatedAt: new Date().toISOString() }; localPhases.set(id, u); return u;
+  },
+  deletePhase: (id: string) => { localPhases.delete(id); },
+  reorderPhases: (pid: string, ids: string[]) => { ids.forEach((id, i) => { const p = localPhases.get(id); if (p && p.projectId === pid) localPhases.set(id, { ...p, sortOrder: i }); }); },
+};
 
+
+
+type PhaseStatus = "DraftSpec" | "SpecApproved" | "PRDAttached" | "ReadyForBuild" | "Accepted" | "ReworkRequired" | "Closed";
+type FreezeState = "Locked" | "FrozenDownstream" | "EditableDownstream" | "DownstreamRevisionRequired";
+type DevProject = { id: string; name: string; objective: string; owner: string; status: string; activePhaseId: string | null; roadmapSummary: string; createdAt: string; updatedAt: string; };
+type Phase = { id: string; projectId: string; phaseNumber: number; title: string; objective: string; description: string; status: PhaseStatus; prerequisites: string; successCriteria: string; riskNotes: string; freezeState: FreezeState; sortOrder: number; createdAt: string; updatedAt: string; };
+const VALID_TRANSITIONS: Record<string, string[]> = { DraftSpec: ["SpecApproved"], SpecApproved: ["PRDAttached", "DraftSpec"], PRDAttached: ["ReadyForBuild", "SpecApproved"], ReadyForBuild: ["Accepted", "ReworkRequired"], Accepted: ["Closed"], ReworkRequired: ["DraftSpec", "PRDAttached"], Closed: [] };
 // Dark theme colors
 const COLORS = {
   bg: "#0f172a",
@@ -41,7 +66,7 @@ function Badge({ label }: { label: string }) {
   return <span style={{ padding: "2px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: 600, backgroundColor: c.bg, color: c.text }}>{label}</span>;
 }
 
-function Btn({ children, onClick, variant = "default", disabled = false }: { children: React.ReactNode; onClick: () => void; variant?: "default" | "primary" | "danger" | "ghost"; disabled?: boolean }) {
+function Btn({ children, onClick, variant = "default", disabled = false }: { children: React.ReactNode; onClick: (e?: any) => void; variant?: "default" | "primary" | "danger" | "ghost"; disabled?: boolean }) {
   const styles: Record<string, any> = {
     default: { backgroundColor: "#374151", color: COLORS.text },
     primary: { backgroundColor: COLORS.accent, color: "#fff" },
@@ -161,13 +186,13 @@ function DepartmentView() {
   const [projectStatus, setProjectStatus] = useState("Draft");
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => { setProjects(store.listProjects()); }, []);
+  useEffect(() => { setProjects(localStore.listProjects()); }, []);
 
-  const refreshPhases = (projectId: string) => setPhases(store.getPhasesByProject(projectId));
+  const refreshPhases = (projectId: string) => setPhases(localStore.getPhasesByProject(projectId));
 
   const handleCreateProject = () => {
-    const p = store.createProject({ name: newProjectName || "New Project", objective: "", owner: "Mike", status: "Draft", activePhaseId: null, roadmapSummary: "" });
-    setProjects(store.listProjects());
+    const p = localStore.createProject({ name: newProjectName || "New Project", objective: "", owner: "Mike", status: "Draft", activePhaseId: null, roadmapSummary: "" });
+    setProjects(localStore.listProjects());
     setSelectedProject(p);
     setPhases([]);
     setNewProjectName("");
@@ -176,7 +201,7 @@ function DepartmentView() {
 
   const handleSelectProject = (p: DevProject) => {
     setSelectedProject(p);
-    setPhases(store.getPhasesByProject(p.id));
+    setPhases(localStore.getPhasesByProject(p.id));
     setSelectedPhase(null);
     setProjectName(p.name);
     setProjectObjective(p.objective);
@@ -186,21 +211,21 @@ function DepartmentView() {
 
   const handleSaveProject = () => {
     if (!selectedProject) return;
-    const updated = store.updateProject(selectedProject.id, { name: projectName, objective: projectObjective, status: projectStatus as any });
+    const updated = localStore.updateProject(selectedProject.id, { name: projectName, objective: projectObjective, status: projectStatus as any });
     setSelectedProject(updated);
-    setProjects(store.listProjects());
+    setProjects(localStore.listProjects());
     setEditingProject(false);
   };
 
   const handleAddPhase = () => {
     if (!selectedProject) return;
-    store.createPhase({ projectId: selectedProject.id, phaseNumber: phases.length + 1, title: "New Phase", objective: "", description: "", status: "DraftSpec", prerequisites: "", successCriteria: "", riskNotes: "", freezeState: "EditableDownstream", sortOrder: phases.length });
+    localStore.createPhase({ projectId: selectedProject.id, phaseNumber: phases.length + 1, title: "New Phase", objective: "", description: "", status: "DraftSpec", prerequisites: "", successCriteria: "", riskNotes: "", freezeState: "EditableDownstream", sortOrder: phases.length });
     refreshPhases(selectedProject.id);
   };
 
   const handleDeletePhase = (id: string) => {
     if (!confirm("Delete this phase and all associated data?")) return;
-    store.deletePhase(id);
+    localStore.deletePhase(id);
     if (selectedProject) refreshPhases(selectedProject.id);
     if (selectedPhase?.id === id) setSelectedPhase(null);
   };
@@ -209,7 +234,7 @@ function DepartmentView() {
     if (!selectedPhase || !selectedProject) return;
     try {
       setError(null);
-      const updated = store.updatePhase(selectedPhase.id, updates);
+      const updated = localStore.updatePhase(selectedPhase.id, updates);
       setSelectedPhase(updated);
       refreshPhases(selectedProject.id);
     } catch (err) {
@@ -225,7 +250,7 @@ function DepartmentView() {
     if (swapIdx < 0 || swapIdx >= sorted.length) return;
     const reordered = [...sorted];
     [reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]];
-    store.reorderPhases(selectedProject.id, reordered.map(p => p.id));
+    localStore.reorderPhases(selectedProject.id, reordered.map(p => p.id));
     refreshPhases(selectedProject.id);
   };
 

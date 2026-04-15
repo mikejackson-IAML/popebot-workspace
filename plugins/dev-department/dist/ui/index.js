@@ -1,7 +1,40 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useState, useEffect } from "react";
-import { store } from "../worker/state.js";
-import { VALID_TRANSITIONS } from "../worker/messages.js";
+// store runs in worker, not UI — use local state
+// Local in-memory store for UI (persistence comes later via plugin SDK messages)
+const localProjects = new Map();
+const localPhases = new Map();
+const localStore = {
+    listProjects: () => Array.from(localProjects.values()),
+    createProject: (data) => { const p = { id: crypto.randomUUID(), ...data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; localProjects.set(p.id, p); return p; },
+    updateProject: (id, data) => { const p = localProjects.get(id); if (!p)
+        throw new Error("Not found"); const u = { ...p, ...data, updatedAt: new Date().toISOString() }; localProjects.set(id, u); return u; },
+    deleteProject: (id) => { localProjects.delete(id); for (const [k, v] of localPhases) {
+        if (v.projectId === id)
+            localPhases.delete(k);
+    } },
+    getPhasesByProject: (pid) => Array.from(localPhases.values()).filter((p) => p.projectId === pid).sort((a, b) => a.sortOrder - b.sortOrder),
+    createPhase: (data) => { const p = { id: crypto.randomUUID(), ...data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; localPhases.set(p.id, p); return p; },
+    updatePhase: (id, data) => {
+        const p = localPhases.get(id);
+        if (!p)
+            throw new Error("Not found");
+        if (p.freezeState === "Locked" && Object.keys(data).some((k) => k !== "freezeState"))
+            throw new Error("Phase is locked");
+        if (data.status && data.status !== p.status) {
+            const allowed = VALID_TRANSITIONS[p.status] || [];
+            if (!allowed.includes(data.status))
+                throw new Error("Invalid transition: " + p.status + " → " + data.status);
+        }
+        const u = { ...p, ...data, updatedAt: new Date().toISOString() };
+        localPhases.set(id, u);
+        return u;
+    },
+    deletePhase: (id) => { localPhases.delete(id); },
+    reorderPhases: (pid, ids) => { ids.forEach((id, i) => { const p = localPhases.get(id); if (p && p.projectId === pid)
+        localPhases.set(id, { ...p, sortOrder: i }); }); },
+};
+const VALID_TRANSITIONS = { DraftSpec: ["SpecApproved"], SpecApproved: ["PRDAttached", "DraftSpec"], PRDAttached: ["ReadyForBuild", "SpecApproved"], ReadyForBuild: ["Accepted", "ReworkRequired"], Accepted: ["Closed"], ReworkRequired: ["DraftSpec", "PRDAttached"], Closed: [] };
 // Dark theme colors
 const COLORS = {
     bg: "#0f172a",
@@ -106,11 +139,11 @@ function DepartmentView() {
     const [projectObjective, setProjectObjective] = useState("");
     const [projectStatus, setProjectStatus] = useState("Draft");
     const [error, setError] = useState(null);
-    useEffect(() => { setProjects(store.listProjects()); }, []);
-    const refreshPhases = (projectId) => setPhases(store.getPhasesByProject(projectId));
+    useEffect(() => { setProjects(localStore.listProjects()); }, []);
+    const refreshPhases = (projectId) => setPhases(localStore.getPhasesByProject(projectId));
     const handleCreateProject = () => {
-        const p = store.createProject({ name: newProjectName || "New Project", objective: "", owner: "Mike", status: "Draft", activePhaseId: null, roadmapSummary: "" });
-        setProjects(store.listProjects());
+        const p = localStore.createProject({ name: newProjectName || "New Project", objective: "", owner: "Mike", status: "Draft", activePhaseId: null, roadmapSummary: "" });
+        setProjects(localStore.listProjects());
         setSelectedProject(p);
         setPhases([]);
         setNewProjectName("");
@@ -118,7 +151,7 @@ function DepartmentView() {
     };
     const handleSelectProject = (p) => {
         setSelectedProject(p);
-        setPhases(store.getPhasesByProject(p.id));
+        setPhases(localStore.getPhasesByProject(p.id));
         setSelectedPhase(null);
         setProjectName(p.name);
         setProjectObjective(p.objective);
@@ -128,21 +161,21 @@ function DepartmentView() {
     const handleSaveProject = () => {
         if (!selectedProject)
             return;
-        const updated = store.updateProject(selectedProject.id, { name: projectName, objective: projectObjective, status: projectStatus });
+        const updated = localStore.updateProject(selectedProject.id, { name: projectName, objective: projectObjective, status: projectStatus });
         setSelectedProject(updated);
-        setProjects(store.listProjects());
+        setProjects(localStore.listProjects());
         setEditingProject(false);
     };
     const handleAddPhase = () => {
         if (!selectedProject)
             return;
-        store.createPhase({ projectId: selectedProject.id, phaseNumber: phases.length + 1, title: "New Phase", objective: "", description: "", status: "DraftSpec", prerequisites: "", successCriteria: "", riskNotes: "", freezeState: "EditableDownstream", sortOrder: phases.length });
+        localStore.createPhase({ projectId: selectedProject.id, phaseNumber: phases.length + 1, title: "New Phase", objective: "", description: "", status: "DraftSpec", prerequisites: "", successCriteria: "", riskNotes: "", freezeState: "EditableDownstream", sortOrder: phases.length });
         refreshPhases(selectedProject.id);
     };
     const handleDeletePhase = (id) => {
         if (!confirm("Delete this phase and all associated data?"))
             return;
-        store.deletePhase(id);
+        localStore.deletePhase(id);
         if (selectedProject)
             refreshPhases(selectedProject.id);
         if (selectedPhase?.id === id)
@@ -153,7 +186,7 @@ function DepartmentView() {
             return;
         try {
             setError(null);
-            const updated = store.updatePhase(selectedPhase.id, updates);
+            const updated = localStore.updatePhase(selectedPhase.id, updates);
             setSelectedPhase(updated);
             refreshPhases(selectedProject.id);
         }
@@ -171,7 +204,7 @@ function DepartmentView() {
             return;
         const reordered = [...sorted];
         [reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]];
-        store.reorderPhases(selectedProject.id, reordered.map(p => p.id));
+        localStore.reorderPhases(selectedProject.id, reordered.map(p => p.id));
         refreshPhases(selectedProject.id);
     };
     // ── Phase detail view ──
