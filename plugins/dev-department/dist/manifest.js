@@ -9,7 +9,6 @@ const manifest = {
     capabilities: [
         "plugin.state.read",
         "plugin.state.write",
-        "ui.sidebar.register",
         "ui.detailTab.register",
         "http.outbound",
         "projects.read",
@@ -21,13 +20,6 @@ const manifest = {
     },
     ui: {
         slots: [
-            {
-                type: "projectSidebarItem",
-                id: "automation-sidebar",
-                displayName: "Automation",
-                exportName: "AutomationSidebar",
-                entityTypes: ["project"],
-            },
             {
                 type: "detailTab",
                 id: "automation-projects",
