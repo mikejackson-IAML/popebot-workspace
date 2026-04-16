@@ -1,0 +1,4 @@
+{
+  "title": "Add async execution step tracing to the RTX router pipeline",
+  "job": "Modify the existing RTX router to capture all execution steps including request input, retrieval results, prompt generation, model calls, and final output. Ensure traces are written asynchronously without blocking execution."
+}
