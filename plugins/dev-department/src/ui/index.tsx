@@ -9,9 +9,103 @@ import {
   useHostContext,
   usePluginToast,
 } from "@paperclipai/plugin-sdk/ui";
+// SDK shared components (StatusBadge, DataTable, etc.) are declared in the SDK
+// but not wired into package exports. We access them via the internal runtime
+// module. If they fail to load, we fall back to simple HTML equivalents.
+let _getSdkUi: ((name: string) => any) | null = null;
+try {
+  // Dynamic import of the runtime accessor — works in Paperclip's module host
+  const runtime = require("@paperclipai/plugin-sdk/dist/ui/runtime");
+  _getSdkUi = runtime.getSdkUiRuntimeValue;
+} catch { /* not available — fallbacks will be used */ }
+
+function sdkComponent<P>(name: string, fallback: React.FC<P>): React.FC<P> {
+  if (_getSdkUi) {
+    try { const c = _getSdkUi(name); if (c) return c as React.FC<P>; } catch {}
+  }
+  return fallback;
+}
+
+// Fallback implementations that blend with host theme
+const StatusBadge = sdkComponent<{ label: string; status: string }>("StatusBadge", ({ label, status }) => {
+  const colors: Record<string, string> = { ok: "#4ade80", warning: "#fbbf24", error: "#f87171", info: "#60a5fa", pending: "#94a3b8" };
+  return <span style={{ padding: "2px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: 600, background: `${colors[status] || colors.pending}22`, color: colors[status] || colors.pending }}>{label}</span>;
+});
+const MetricCard = sdkComponent<{ label: string; value: string | number }>("MetricCard", ({ label, value }) => (
+  <div style={{ padding: "12px", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", textAlign: "center" }}>
+    <div style={{ fontSize: "18px", fontWeight: 700 }}>{value}</div>
+    <div style={{ fontSize: "11px", opacity: 0.5 }}>{label}</div>
+  </div>
+));
+const LogView = sdkComponent<{ entries: LogViewEntry[]; maxHeight?: string; autoScroll?: boolean; loading?: boolean }>("LogView", ({ entries, maxHeight, loading }) => (
+  <div style={{ maxHeight: maxHeight || "400px", overflow: "auto", fontFamily: "monospace", fontSize: "12px", padding: "8px", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px" }}>
+    {entries.map((e, i) => (
+      <div key={i} style={{ padding: "2px 0", color: e.level === "error" ? "#f87171" : e.level === "warn" ? "#fbbf24" : "inherit", opacity: e.level === "debug" ? 0.6 : 1 }}>
+        <span style={{ opacity: 0.4, marginRight: "8px" }}>{new Date(e.timestamp).toLocaleTimeString()}</span>{e.message}
+      </div>
+    ))}
+    {loading && <div style={{ opacity: 0.5 }}>Loading...</div>}
+  </div>
+));
+const DataTable = sdkComponent<{ columns: any[]; rows: any[]; loading?: boolean; emptyMessage?: string }>("DataTable", ({ columns, rows, loading, emptyMessage }) => (
+  <div style={{ border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", overflow: "hidden" }}>
+    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+      <thead><tr>{columns.map((c: any) => <th key={c.key} style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid rgba(255,255,255,0.1)", fontSize: "11px", opacity: 0.6, fontWeight: 600, textTransform: "uppercase", width: c.width }}>{c.header}</th>)}</tr></thead>
+      <tbody>
+        {rows.length === 0 ? (
+          <tr><td colSpan={columns.length} style={{ padding: "24px", textAlign: "center", opacity: 0.4 }}>{emptyMessage || "No data"}</td></tr>
+        ) : rows.map((row: any, i: number) => (
+          <tr key={row.id || i} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+            {columns.map((c: any) => <td key={c.key} style={{ padding: "8px 12px" }}>{c.render ? c.render(row[c.key], row) : String(row[c.key] ?? "")}</td>)}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    {loading && <div style={{ padding: "8px", textAlign: "center", opacity: 0.5 }}>Loading...</div>}
+  </div>
+));
+const KeyValueList = sdkComponent<{ pairs: Array<{ label: string; value: React.ReactNode }> }>("KeyValueList", ({ pairs }) => (
+  <div style={{ display: "grid", gap: "4px", fontSize: "13px" }}>
+    {pairs.map((p, i) => (
+      <div key={i} style={{ display: "flex", gap: "12px" }}>
+        <span style={{ opacity: 0.5, minWidth: "100px", flexShrink: 0 }}>{p.label}</span>
+        <span>{p.value}</span>
+      </div>
+    ))}
+  </div>
+));
+const ActionBar = sdkComponent<{ actions: ActionBarItem[]; onSuccess?: (k: string, r: unknown) => void; onError?: (k: string, e: unknown) => void }>("ActionBar", ({ actions, onSuccess, onError }) => {
+  const act = usePluginAction;
+  return (
+    <div style={{ display: "flex", gap: "8px" }}>
+      {actions.map((a) => {
+        const colors: Record<string, string> = { primary: "rgba(99,102,241,0.2)", destructive: "rgba(239,68,68,0.2)", default: "rgba(255,255,255,0.1)" };
+        return (
+          <button key={a.actionKey + a.label} onClick={async () => {
+            try { const fn = act(a.actionKey); const r = await fn(a.params || {}); onSuccess?.(a.actionKey, r); }
+            catch (e) { onError?.(a.actionKey, e); }
+          }} style={{ padding: "8px 16px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "13px", background: colors[a.variant || "default"], color: "inherit" }}>
+            {a.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+});
+const MarkdownBlock = sdkComponent<{ content: string }>("MarkdownBlock", ({ content }) => (
+  <pre style={{ fontSize: "13px", lineHeight: "1.5", whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0, maxHeight: "300px", overflow: "auto" }}>{content}</pre>
+));
+const Spinner = sdkComponent<{ size?: string; label?: string }>("Spinner", ({ label }) => (
+  <div style={{ padding: "24px", textAlign: "center", opacity: 0.6 }}>{label || "Loading..."}</div>
+));
+const ErrorBoundary = sdkComponent<{ children: React.ReactNode; fallback?: React.ReactNode }>("ErrorBoundary", ({ children }) => <>{children}</>);
+
+type StatusBadgeVariant = "ok" | "warning" | "error" | "info" | "pending";
+interface LogViewEntry { timestamp: string; level: "info" | "warn" | "error" | "debug"; message: string; meta?: Record<string, unknown>; }
+interface ActionBarItem { label: string; actionKey: string; params?: Record<string, unknown>; variant?: "default" | "primary" | "destructive"; confirm?: boolean; confirmMessage?: string; }
 
 // =============================================================================
-// Types (mirror worker/types.ts for UI)
+// Types (mirror worker/types.ts)
 // =============================================================================
 
 type ProjectStatus = "draft" | "planning" | "ready" | "building" | "reviewing" | "needs-review" | "complete" | "failed" | "advancing";
@@ -34,18 +128,6 @@ interface ManagedProject {
   updatedAt: string;
 }
 
-interface PhaseReport {
-  projectId: string;
-  phaseNumber: number;
-  report: string;
-  nextPrd: string;
-  nextPhase: number;
-  nextProjectId: string | null;
-  createdAt: string;
-}
-
-type BuildJobType = "code" | "workflow" | "config" | "schema";
-
 interface BuildJob {
   id: string;
   projectId: string;
@@ -53,7 +135,7 @@ interface BuildJob {
   description: string;
   targetFiles: string[];
   dependencies: string[];
-  jobType: BuildJobType;
+  jobType: string;
   status: string;
   popebotJobId: string | null;
   prUrl: string | null;
@@ -71,12 +153,10 @@ interface LLMUsageRecord {
   timestamp: string;
 }
 
-type PipelineStatus = "queued" | "building" | "reviewing" | "fixing" | "complete" | "failed" | "cancelled";
-
 interface PipelineRun {
   id: string;
   projectId: string;
-  status: PipelineStatus;
+  status: string;
   currentStep: string;
   reviewRound: number;
   maxReviewRounds: number;
@@ -109,6 +189,16 @@ interface ReviewResult {
   createdAt: string;
 }
 
+interface PhaseReport {
+  projectId: string;
+  phaseNumber: number;
+  report: string;
+  nextPrd: string;
+  nextPhase: number;
+  nextProjectId: string | null;
+  createdAt: string;
+}
+
 interface ProjectDetail {
   project: ManagedProject;
   jobs: BuildJob[];
@@ -117,179 +207,84 @@ interface ProjectDetail {
   usage: LLMUsageRecord[];
 }
 
-interface ProgressMessage {
-  message: string;
-  timestamp: string;
+interface SavedRepo {
+  id: string;
+  name: string;
+  repoUrl: string;
+  defaultReviewDir: string;
 }
 
 // =============================================================================
-// Theme
+// Status mapping to native StatusBadge variants
 // =============================================================================
 
-const C = {
-  bg: "#0f172a",
-  bgCard: "#1e293b",
-  bgInput: "#0f172a",
-  border: "#334155",
-  borderFocus: "#6366f1",
-  text: "#e2e8f0",
-  textMuted: "#94a3b8",
-  textDim: "#64748b",
-  accent: "#6366f1",
-  accentHover: "#818cf8",
-  success: "#22c55e",
-  danger: "#ef4444",
-  dangerBg: "#7f1d1d",
-  warning: "#f59e0b",
-};
-
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  draft: { bg: "#374151", text: "#9ca3af" },
-  planning: { bg: "#1e3a5f", text: "#60a5fa" },
-  ready: { bg: "#3b0764", text: "#c084fc" },
-  building: { bg: "#064e3b", text: "#34d399" },
-  reviewing: { bg: "#78350f", text: "#fbbf24" },
-  "needs-review": { bg: "#78350f", text: "#fbbf24" },
-  complete: { bg: "#14532d", text: "#4ade80" },
-  advancing: { bg: "#4c1d95", text: "#c4b5fd" },
-  failed: { bg: "#7f1d1d", text: "#f87171" },
-  // job statuses
-  pending: { bg: "#374151", text: "#9ca3af" },
-  dispatched: { bg: "#1e3a5f", text: "#60a5fa" },
-  merged: { bg: "#14532d", text: "#4ade80" },
-  skipped: { bg: "#1f2937", text: "#6b7280" },
-  // pipeline statuses
-  queued: { bg: "#374151", text: "#9ca3af" },
-  cancelled: { bg: "#78350f", text: "#fbbf24" },
-};
-
-const TIER_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  haiku: { bg: "#1e3a5f", text: "#60a5fa", label: "Tier 1: Haiku" },
-  deepseek: { bg: "#4c1d95", text: "#c4b5fd", label: "Tier 2: DeepSeek" },
-  codex: { bg: "#064e3b", text: "#34d399", label: "Tier 3: Codex" },
-};
-
-const VERDICT_COLORS: Record<string, { bg: string; text: string }> = {
-  approve: { bg: "#14532d", text: "#4ade80" },
-  pass: { bg: "#14532d", text: "#4ade80" },
-  concerns: { bg: "#78350f", text: "#fbbf24" },
-  "request-changes": { bg: "#7f1d1d", text: "#f87171" },
-  block: { bg: "#7f1d1d", text: "#f87171" },
-  reject: { bg: "#7f1d1d", text: "#f87171" },
-  unknown: { bg: "#374151", text: "#9ca3af" },
-};
-
-const PRIORITY_COLORS: Record<string, { bg: string; text: string }> = {
-  P0: { bg: "#7f1d1d", text: "#fca5a5" },
-  P1: { bg: "#78350f", text: "#fbbf24" },
-  P2: { bg: "#1e3a5f", text: "#60a5fa" },
-  P3: { bg: "#374151", text: "#9ca3af" },
-};
+function statusVariant(status: string): StatusBadgeVariant {
+  switch (status) {
+    case "complete": case "merged": case "approve": case "pass": return "ok";
+    case "building": case "reviewing": case "advancing": case "dispatched": case "planning": return "info";
+    case "needs-review": case "concerns": case "request-changes": case "warning": return "warning";
+    case "failed": case "block": case "reject": return "error";
+    default: return "pending";
+  }
+}
 
 // =============================================================================
-// Primitives
+// Lightweight form primitives (SDK has no form components)
 // =============================================================================
 
-function Badge({ label, colors }: { label: string; colors?: Record<string, { bg: string; text: string }> }) {
-  const map = colors || STATUS_COLORS;
-  const c = map[label] || { bg: "#374151", text: "#9ca3af" };
+function FormField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <span style={{ padding: "2px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: 600, backgroundColor: c.bg, color: c.text }}>
-      {label}
-    </span>
-  );
-}
-
-function Btn({ children, onClick, variant = "default", disabled = false, style }: {
-  children: React.ReactNode;
-  onClick: (e?: any) => void;
-  variant?: "default" | "primary" | "danger" | "ghost";
-  disabled?: boolean;
-  style?: React.CSSProperties;
-}) {
-  const styles: Record<string, React.CSSProperties> = {
-    default: { backgroundColor: "#374151", color: C.text },
-    primary: { backgroundColor: C.accent, color: "#fff" },
-    danger: { backgroundColor: C.dangerBg, color: "#f87171" },
-    ghost: { backgroundColor: "transparent", color: C.textMuted },
-  };
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        padding: "8px 16px", border: "none", borderRadius: "6px",
-        cursor: disabled ? "not-allowed" : "pointer", fontSize: "13px", fontWeight: 500,
-        opacity: disabled ? 0.5 : 1, ...styles[variant], ...style,
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function Input({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
-  return (
-    <input
-      type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-      style={{
-        width: "100%", padding: "10px 12px", backgroundColor: C.bgInput, color: C.text,
-        border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box",
-      }}
-    />
-  );
-}
-
-function TextArea({ value, onChange, placeholder, rows = 3 }: { value: string; onChange: (v: string) => void; placeholder?: string; rows?: number }) {
-  return (
-    <textarea
-      value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={rows}
-      style={{
-        width: "100%", padding: "10px 12px", backgroundColor: C.bgInput, color: C.text,
-        border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "14px",
-        boxSizing: "border-box", resize: "vertical", fontFamily: "monospace",
-      }}
-    />
-  );
-}
-
-function Select({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
-  return (
-    <select
-      value={value} onChange={(e) => onChange(e.target.value)}
-      style={{
-        width: "100%", padding: "10px 12px", backgroundColor: C.bgInput, color: C.text,
-        border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box",
-      }}
-    >
-      {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-    </select>
-  );
-}
-
-function Card({ children, onClick, style }: { children: React.ReactNode; onClick?: () => void; style?: React.CSSProperties }) {
-  return (
-    <div
-      onClick={onClick}
-      style={{
-        padding: "16px", backgroundColor: C.bgCard, borderRadius: "8px",
-        border: `1px solid ${C.border}`, cursor: onClick ? "pointer" : "default", ...style,
-      }}
-    >
+    <div style={{ display: "grid", gap: "4px" }}>
+      <label style={{ fontSize: "12px", fontWeight: 500, opacity: 0.7 }}>{label}</label>
       {children}
     </div>
   );
 }
 
-function Label({ children }: { children: React.ReactNode }) {
-  return <label style={{ display: "block", color: C.textMuted, fontSize: "12px", marginBottom: "4px", fontWeight: 500 }}>{children}</label>;
+function TextInput({ value, onChange, placeholder, type = "text" }: {
+  value: string; onChange: (v: string) => void; placeholder?: string; type?: string;
+}) {
+  return (
+    <input
+      type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+      style={{
+        width: "100%", padding: "8px 10px", border: "1px solid rgba(255,255,255,0.15)",
+        borderRadius: "6px", fontSize: "13px", boxSizing: "border-box",
+        background: "rgba(0,0,0,0.2)", color: "inherit",
+      }}
+    />
+  );
 }
 
-function ErrorBanner({ message }: { message: string }) {
+function TextAreaInput({ value, onChange, placeholder, rows = 3 }: {
+  value: string; onChange: (v: string) => void; placeholder?: string; rows?: number;
+}) {
   return (
-    <Card style={{ marginBottom: "12px", borderColor: C.danger }}>
-      <span style={{ color: "#f87171" }}>{message}</span>
-    </Card>
+    <textarea
+      value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={rows}
+      style={{
+        width: "100%", padding: "8px 10px", border: "1px solid rgba(255,255,255,0.15)",
+        borderRadius: "6px", fontSize: "13px", boxSizing: "border-box",
+        background: "rgba(0,0,0,0.2)", color: "inherit", resize: "vertical", fontFamily: "monospace",
+      }}
+    />
+  );
+}
+
+function SelectInput({ value, onChange, options }: {
+  value: string; onChange: (v: string) => void; options: { value: string; label: string }[];
+}) {
+  return (
+    <select
+      value={value} onChange={(e) => onChange(e.target.value)}
+      style={{
+        width: "100%", padding: "8px 10px", border: "1px solid rgba(255,255,255,0.15)",
+        borderRadius: "6px", fontSize: "13px", boxSizing: "border-box",
+        background: "rgba(0,0,0,0.2)", color: "inherit",
+      }}
+    >
+      {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
   );
 }
 
@@ -304,9 +299,48 @@ function CreateProjectForm({ onSubmit, onCancel }: {
   const [name, setName] = useState("");
   const [prdText, setPrdText] = useState("");
   const [priority, setPriority] = useState<ProjectPriority>("P2");
-  const [repoUrl, setRepoUrl] = useState("mikejackson-IAML/popebot-workspace");
-  const [reviewDir, setReviewDir] = useState("plugins/dev-department");
+  const [repoUrl, setRepoUrl] = useState("");
+  const [reviewDir, setReviewDir] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
+  const [showAddRepo, setShowAddRepo] = useState(false);
+  const [newRepoName, setNewRepoName] = useState("");
+  const [newRepoUrl, setNewRepoUrl] = useState("");
+  const [newRepoDir, setNewRepoDir] = useState("");
+
+  const { data: savedRepos, refresh: refreshRepos } = usePluginData<SavedRepo[]>("saved-repos", {});
+  const saveRepoAction = usePluginAction("save-repo");
+  const deleteRepoAction = usePluginAction("delete-repo");
+
+  const repos = savedRepos || [];
+
+  const handleSelectRepo = (repoId: string) => {
+    if (repoId === "__add__") {
+      setShowAddRepo(true);
+      return;
+    }
+    const repo = repos.find(r => r.id === repoId);
+    if (repo) {
+      setRepoUrl(repo.repoUrl);
+      setReviewDir(repo.defaultReviewDir);
+    }
+  };
+
+  const handleSaveNewRepo = async () => {
+    if (!newRepoName || !newRepoUrl) return;
+    await saveRepoAction({ name: newRepoName, repoUrl: newRepoUrl, defaultReviewDir: newRepoDir });
+    setRepoUrl(newRepoUrl);
+    setReviewDir(newRepoDir);
+    setShowAddRepo(false);
+    setNewRepoName("");
+    setNewRepoUrl("");
+    setNewRepoDir("");
+    refreshRepos();
+  };
+
+  const handleDeleteRepo = async (repoId: string) => {
+    await deleteRepoAction({ repoId });
+    refreshRepos();
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -318,7 +352,6 @@ function CreateProjectForm({ onSubmit, onCancel }: {
       if (text) setPrdText(text);
     };
     reader.readAsText(file);
-    // Auto-fill project name from filename if empty
     if (!name.trim()) {
       const baseName = file.name.replace(/\.(md|txt|markdown|rst|prd)$/i, "").replace(/[-_]/g, " ");
       setName(baseName);
@@ -326,190 +359,124 @@ function CreateProjectForm({ onSubmit, onCancel }: {
   };
 
   return (
-    <Card style={{ marginBottom: "16px" }}>
-      <h3 style={{ margin: "0 0 16px 0", color: C.text, fontSize: "16px" }}>New Project</h3>
-      <div style={{ display: "grid", gap: "12px" }}>
-        <div>
-          <Label>Project Name</Label>
-          <Input value={name} onChange={setName} placeholder="e.g. IAML Website Redesign" />
-        </div>
-        <div>
-          <Label>Priority</Label>
-          <Select
-            value={priority}
-            onChange={(v) => setPriority(v as ProjectPriority)}
-            options={[
-              { value: "P0", label: "P0 — Critical" },
-              { value: "P1", label: "P1 — High" },
-              { value: "P2", label: "P2 — Medium" },
-              { value: "P3", label: "P3 — Low" },
-            ]}
-          />
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-          <div>
-            <Label>GitHub Repo (owner/name)</Label>
-            <Input value={repoUrl} onChange={setRepoUrl} placeholder="owner/repo-name" />
-          </div>
-          <div>
-            <Label>Review Directory</Label>
-            <Input value={reviewDir} onChange={setReviewDir} placeholder="src/ or plugins/my-plugin" />
-          </div>
-        </div>
-        <div>
-          <Label>PRD</Label>
-          <div style={{
-            display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px",
-          }}>
-            <label style={{
-              padding: "8px 16px", backgroundColor: "#374151", color: C.text,
-              borderRadius: "6px", fontSize: "13px", fontWeight: 500, cursor: "pointer",
-              border: `1px solid ${C.border}`,
-            }}>
-              Upload File
-              <input
-                type="file"
-                accept=".md,.txt,.markdown,.rst,.prd"
-                onChange={handleFileUpload}
-                style={{ display: "none" }}
-              />
-            </label>
-            {fileName && (
-              <span style={{ color: C.textMuted, fontSize: "13px" }}>{fileName}</span>
+    <div style={{ display: "grid", gap: "16px", padding: "16px", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", marginBottom: "16px" }}>
+      <div style={{ fontSize: "16px", fontWeight: 600 }}>New Project</div>
+
+      <FormField label="Project Name">
+        <TextInput value={name} onChange={setName} placeholder="e.g. IAML Website Redesign" />
+      </FormField>
+
+      <FormField label="Priority">
+        <SelectInput
+          value={priority}
+          onChange={(v) => setPriority(v as ProjectPriority)}
+          options={[
+            { value: "P0", label: "P0 — Critical" },
+            { value: "P1", label: "P1 — High" },
+            { value: "P2", label: "P2 — Medium" },
+            { value: "P3", label: "P3 — Low" },
+          ]}
+        />
+      </FormField>
+
+      <FormField label="Repository">
+        {repos.length > 0 ? (
+          <div style={{ display: "grid", gap: "8px" }}>
+            <SelectInput
+              value=""
+              onChange={handleSelectRepo}
+              options={[
+                { value: "", label: "Select a saved repo..." },
+                ...repos.map(r => ({ value: r.id, label: `${r.name} (${r.repoUrl})` })),
+                { value: "__add__", label: "+ Add new repo" },
+              ]}
+            />
+            {repoUrl && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                <TextInput value={repoUrl} onChange={setRepoUrl} placeholder="owner/repo" />
+                <TextInput value={reviewDir} onChange={setReviewDir} placeholder="Review directory" />
+              </div>
             )}
-            <span style={{ color: C.textDim, fontSize: "12px" }}>or paste below</span>
           </div>
-          <TextArea
-            value={prdText}
-            onChange={setPrdText}
-            placeholder="Paste your PRD here, or upload a file above..."
-            rows={12}
-          />
-        </div>
-        <div style={{ display: "flex", gap: "8px" }}>
-          <Btn
-            onClick={() => onSubmit({ name, prdText, priority, repoUrl, reviewDir })}
-            variant="primary"
-            disabled={!name.trim()}
-          >
-            Create Project
-          </Btn>
-          <Btn onClick={onCancel} variant="ghost">Cancel</Btn>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-// =============================================================================
-// Project Detail View
-// =============================================================================
-
-// =============================================================================
-// Editable Job Card
-// =============================================================================
-
-function EditableJobCard({ job, index, onSave }: {
-  job: BuildJob;
-  index: number;
-  onSave: (updates: Partial<BuildJob>) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [editingJob, setEditingJob] = useState(false);
-  const [editName, setEditName] = useState(job.name);
-  const [editDesc, setEditDesc] = useState(job.description);
-  const [editFiles, setEditFiles] = useState(job.targetFiles.join(", "));
-
-  const handleSaveJob = () => {
-    onSave({
-      name: editName,
-      description: editDesc,
-      targetFiles: editFiles.split(",").map((f) => f.trim()).filter(Boolean),
-    });
-    setEditingJob(false);
-  };
-
-  return (
-    <Card style={{ padding: "12px 16px" }}>
-      <div
-        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
-        onClick={() => !editingJob && setExpanded(!expanded)}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}>
-          <span style={{ color: C.textDim, fontSize: "13px", fontWeight: 700, minWidth: "24px" }}>#{index + 1}</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 600, color: C.text, fontSize: "14px" }}>{job.name}</div>
-            <div style={{ fontSize: "12px", color: C.textDim, marginTop: "2px" }}>
-              {job.targetFiles.join(", ") || "No target files"}
+        ) : (
+          <div style={{ display: "grid", gap: "8px" }}>
+            <div style={{ fontSize: "12px", opacity: 0.6 }}>No saved repos. Add one or enter manually:</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              <TextInput value={repoUrl} onChange={setRepoUrl} placeholder="owner/repo-name" />
+              <TextInput value={reviewDir} onChange={setReviewDir} placeholder="Review directory (e.g. src/)" />
             </div>
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          {job.dependencies.length > 0 && (
-            <span style={{ fontSize: "11px", color: C.textDim }}>
-              depends: {job.dependencies.join(", ")}
-            </span>
-          )}
-          {job.jobType && job.jobType !== "code" && (
-            <Badge label={job.jobType} colors={{
-              workflow: { bg: "#4c1d95", text: "#c4b5fd" },
-              config: { bg: "#713f12", text: "#fde68a" },
-              schema: { bg: "#164e63", text: "#67e8f9" },
-            }} />
-          )}
-          {job.prUrl && (
-            <a
-              href={job.prUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              style={{ fontSize: "11px", color: C.accent, textDecoration: "none" }}
+            <button
+              onClick={() => setShowAddRepo(true)}
+              style={{ fontSize: "12px", background: "none", border: "none", color: "inherit", opacity: 0.6, cursor: "pointer", textAlign: "left", padding: 0 }}
             >
-              PR
-            </a>
-          )}
-          <Badge label={job.status} />
-          <span style={{ color: C.textDim, fontSize: "12px" }}>{expanded ? "▲" : "▼"}</span>
-        </div>
-      </div>
+              + Save this repo for future use
+            </button>
+          </div>
+        )}
+      </FormField>
 
-      {expanded && !editingJob && (
-        <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: `1px solid ${C.border}` }}>
-          <pre style={{
-            color: C.text, fontSize: "12px", lineHeight: "1.5",
-            whiteSpace: "pre-wrap", wordBreak: "break-word", margin: "0 0 8px 0",
-          }}>
-            {job.description}
-          </pre>
-          {job.status === "pending" && (
-            <Btn variant="ghost" onClick={(e: any) => { e.stopPropagation(); setEditingJob(true); }} style={{ fontSize: "12px", padding: "4px 10px" }}>
-              Edit Job
-            </Btn>
-          )}
-        </div>
-      )}
-
-      {editingJob && (
-        <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: `1px solid ${C.border}`, display: "grid", gap: "8px" }}>
-          <div>
-            <Label>Job Name</Label>
-            <Input value={editName} onChange={setEditName} />
-          </div>
-          <div>
-            <Label>Description</Label>
-            <TextArea value={editDesc} onChange={setEditDesc} rows={4} />
-          </div>
-          <div>
-            <Label>Target Files (comma-separated)</Label>
-            <Input value={editFiles} onChange={setEditFiles} placeholder="src/foo.ts, src/bar.ts" />
-          </div>
+      {showAddRepo && (
+        <div style={{ display: "grid", gap: "8px", padding: "12px", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px" }}>
+          <div style={{ fontSize: "13px", fontWeight: 500 }}>Save New Repo</div>
+          <FormField label="Display Name">
+            <TextInput value={newRepoName} onChange={setNewRepoName} placeholder="e.g. PopeBot Workspace" />
+          </FormField>
+          <FormField label="GitHub Repo (owner/name)">
+            <TextInput value={newRepoUrl} onChange={setNewRepoUrl} placeholder="mikejackson-IAML/popebot-workspace" />
+          </FormField>
+          <FormField label="Default Review Directory">
+            <TextInput value={newRepoDir} onChange={setNewRepoDir} placeholder="plugins/dev-department" />
+          </FormField>
           <div style={{ display: "flex", gap: "8px" }}>
-            <Btn variant="primary" onClick={handleSaveJob} style={{ fontSize: "12px", padding: "4px 10px" }}>Save</Btn>
-            <Btn variant="ghost" onClick={() => setEditingJob(false)} style={{ fontSize: "12px", padding: "4px 10px" }}>Cancel</Btn>
+            <button onClick={handleSaveNewRepo} style={{ padding: "6px 12px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "12px", background: "rgba(255,255,255,0.1)", color: "inherit" }}>
+              Save Repo
+            </button>
+            <button onClick={() => setShowAddRepo(false)} style={{ padding: "6px 12px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "12px", background: "none", color: "inherit", opacity: 0.6 }}>
+              Cancel
+            </button>
           </div>
         </div>
       )}
-    </Card>
+
+      {/* Saved repos list (for deletion) */}
+      {repos.length > 0 && (
+        <details style={{ fontSize: "12px", opacity: 0.6 }}>
+          <summary style={{ cursor: "pointer" }}>Manage saved repos ({repos.length})</summary>
+          <div style={{ marginTop: "8px", display: "grid", gap: "4px" }}>
+            {repos.map(r => (
+              <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0" }}>
+                <span>{r.name} — {r.repoUrl} ({r.defaultReviewDir || "root"})</span>
+                <button onClick={() => handleDeleteRepo(r.id)} style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", opacity: 0.5, fontSize: "11px" }}>remove</button>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      <FormField label="PRD">
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "4px" }}>
+          <label style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "12px", cursor: "pointer", border: "1px solid rgba(255,255,255,0.15)", background: "rgba(0,0,0,0.2)" }}>
+            Upload File
+            <input type="file" accept=".md,.txt,.markdown,.rst,.prd" onChange={handleFileUpload} style={{ display: "none" }} />
+          </label>
+          {fileName && <span style={{ fontSize: "12px", opacity: 0.6 }}>{fileName}</span>}
+        </div>
+        <TextAreaInput value={prdText} onChange={setPrdText} placeholder="Paste your PRD here, or upload a file above..." rows={12} />
+      </FormField>
+
+      <div style={{ display: "flex", gap: "8px" }}>
+        <button
+          onClick={() => onSubmit({ name, prdText, priority, repoUrl: repoUrl || "mikejackson-IAML/popebot-workspace", reviewDir: reviewDir || "." })}
+          disabled={!name.trim()}
+          style={{ padding: "8px 16px", borderRadius: "6px", border: "none", cursor: name.trim() ? "pointer" : "not-allowed", fontSize: "13px", fontWeight: 500, background: "rgba(255,255,255,0.1)", color: "inherit", opacity: name.trim() ? 1 : 0.4 }}
+        >
+          Create Project
+        </button>
+        <button onClick={onCancel} style={{ padding: "8px 16px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "13px", background: "none", color: "inherit", opacity: 0.6 }}>
+          Cancel
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -525,10 +492,6 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const [pollTick, setPollTick] = useState(0);
   const [pendingPoll, setPendingPoll] = useState(false);
 
-  // Schedule next poll tick. Uses pendingPoll flag to prevent stacking multiple
-  // timeouts. The chain: Start Build → setPendingPoll(true) → render detects
-  // pendingPoll+active → fires one setTimeout → tick increments → params change →
-  // usePluginData re-fetches → render again → repeat while active.
   const scheduleNextTick = () => {
     if (pendingPoll) return;
     setPendingPoll(true);
@@ -539,8 +502,7 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   };
 
   const { data, loading, error, refresh } = usePluginData<ProjectDetail>("project-detail", {
-    parentProjectId,
-    projectId,
+    parentProjectId, projectId,
   });
 
   const updateProject = usePluginAction("update-project");
@@ -560,16 +522,9 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
 
   const { data: apiKeyStatus, refresh: refreshApiKey } = usePluginData<{ configured: boolean }>("api-key-status", {});
   const { data: rtxKeyStatus, refresh: refreshRtxKey } = usePluginData<{ configured: boolean }>("rtx-key-status", {});
-  const { data: progressData } = usePluginData<ProgressMessage[]>("progress-log", {
-    parentProjectId, projectId,
-  });
-  const { data: phaseReport } = usePluginData<PhaseReport | null>("phase-report", {
-    parentProjectId, projectId,
-  });
-  const { data: pipelineEvents, refresh: refreshPipelineEvents } = usePluginData<PipelineEvent[]>("pipeline-events", {
-    parentProjectId, projectId,
-    _tick: pollTick,
-  });
+  const { data: progressData } = usePluginData<Array<{ message: string; timestamp: string }>>("progress-log", { parentProjectId, projectId });
+  const { data: pipelineEvents } = usePluginData<PipelineEvent[]>("pipeline-events", { parentProjectId, projectId, _tick: pollTick });
+  const { data: phaseReport } = usePluginData<PhaseReport | null>("phase-report", { parentProjectId, projectId });
 
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
@@ -577,7 +532,7 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const [editPriority, setEditPriority] = useState<ProjectPriority>("P2");
   const [actionError, setActionError] = useState<string | null>(null);
   const [decomposing, setDecomposing] = useState(false);
-  const [showApiKeyConfig, setShowApiKeyConfig] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [rtxKeyInput, setRtxKeyInput] = useState("");
   const [pipelineStarting, setPipelineStarting] = useState(false);
@@ -585,893 +540,446 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const [advancing, setAdvancing] = useState(false);
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
 
-  if (loading) return <div style={{ padding: "24px", color: C.textMuted }}>Loading...</div>;
-  if (error) return <ErrorBanner message={error.message} />;
-  if (!data) return <ErrorBanner message="Project not found" />;
+  if (loading) return <Spinner label="Loading project..." />;
+  if (error) return <StatusBadge label={error.message} status="error" />;
+  if (!data) return <StatusBadge label="Project not found" status="error" />;
 
-  const { project, jobs, usage, reviews } = data;
+  const { project, jobs, pipeline, reviews, usage } = data;
+  const totalCost = usage.reduce((sum, u) => sum + u.estimatedCostUsd, 0);
 
-  // Auto-poll: if pipeline is active, schedule next tick to re-fetch data.
-  // Starts from Start Build click OR when navigating into an already-building project.
   const isActive = project.status === "building" || project.status === "reviewing" || project.status === "advancing";
+  const needsReview = project.status === "needs-review";
+  const canDecompose = project.prdText && (project.status === "draft" || project.status === "failed");
+  const canStartPipeline = project.status === "ready" && jobs.length > 0;
+  const isPipelineRunning = project.status === "building" || project.status === "reviewing";
+  const isAdvancing = project.status === "advancing";
+  const canAdvance = project.status === "complete" && !phaseReport;
 
+  if (needsReview) {
+    toast({ dedupeKey: `review-${projectId}`, title: "Review needed", body: `"${project.name}" — approve or reject.`, tone: "warn", ttlMs: 10000 });
+  }
   if (isActive && !pendingPoll) {
     scheduleNextTick();
   }
 
-  // Filter progress events for this project
-  const myProgress = progressData || [];
+  // ── Handlers ──
 
-  const startEditing = () => {
-    setEditName(project.name);
-    setEditPrd(project.prdText);
-    setEditPriority(project.priority);
-    setEditing(true);
-  };
+  const startEditing = () => { setEditName(project.name); setEditPrd(project.prdText); setEditPriority(project.priority); setEditing(true); };
 
   const handleSave = async () => {
     try {
       setActionError(null);
-      await updateProject({
-        parentProjectId,
-        projectId,
-        updates: { name: editName, prdText: editPrd, priority: editPriority },
-      });
-      setEditing(false);
-      refresh();
-    } catch (err: any) {
-      setActionError(err.message || "Failed to update");
-    }
+      await updateProject({ parentProjectId, projectId, updates: { name: editName, prdText: editPrd, priority: editPriority } });
+      setEditing(false); refresh();
+    } catch (err: any) { setActionError(err.message); }
   };
 
   const handleDelete = async () => {
     if (!confirm("Delete this project and all associated data?")) return;
-    try {
-      await deleteProjectAction({ parentProjectId, projectId });
-      onBack();
-    } catch (err: any) {
-      setActionError(err.message || "Failed to delete");
-    }
+    try { await deleteProjectAction({ parentProjectId, projectId }); onBack(); }
+    catch (err: any) { setActionError(err.message); }
   };
 
   const handleDecompose = async () => {
-    if (!apiKeyStatus?.configured) {
-      setShowApiKeyConfig(true);
-      setActionError("Configure your Anthropic API key first.");
-      return;
-    }
-    try {
-      setActionError(null);
-      setDecomposing(true);
-      await decomposePrdAction({ parentProjectId, projectId });
-      // Action returns immediately — decomposition runs in background.
-      // Polling is handled by useEffect below.
-    } catch (err: any) {
-      setActionError(err.message || "Decomposition failed");
-      setDecomposing(false);
-    }
-  };
-
-  const handleSaveApiKey = async () => {
-    try {
-      await saveApiKeyAction({ apiKey: apiKeyInput });
-      setApiKeyInput("");
-      setActionError(null);
-      refreshApiKey();
-    } catch (err: any) {
-      setActionError(err.message || "Failed to save API key");
-    }
-  };
-
-  const handleSaveRtxKey = async () => {
-    try {
-      await saveRtxKeyAction({ apiKey: rtxKeyInput });
-      setRtxKeyInput("");
-      setActionError(null);
-      refreshRtxKey();
-    } catch (err: any) {
-      setActionError(err.message || "Failed to save RTX key");
-    }
-  };
-
-  const handleUpdateJob = async (jobId: string, updates: Partial<BuildJob>) => {
-    try {
-      setActionError(null);
-      await updateJobAction({ parentProjectId, projectId, jobId, updates });
-      refresh();
-    } catch (err: any) {
-      setActionError(err.message || "Failed to update job");
-    }
+    if (!apiKeyStatus?.configured) { setShowSettings(true); setActionError("Configure your Anthropic API key first."); return; }
+    try { setActionError(null); setDecomposing(true); await decomposePrdAction({ parentProjectId, projectId }); }
+    catch (err: any) { setActionError(err.message); setDecomposing(false); }
   };
 
   const handleStartPipeline = async () => {
-    if (!rtxKeyStatus?.configured) {
-      setShowApiKeyConfig(true);
-      setActionError("Configure your RTX Pipeline Key first (gear icon).");
-      return;
-    }
-    try {
-      setActionError(null);
-      setPipelineStarting(true);
-      await startPipelineAction({
-        parentProjectId,
-        projectId,
-        reviewDir: "plugins/dev-department",
-        phaseScope: "",
-      });
-      refresh();
-    } catch (err: any) {
-      setActionError(err.message || "Failed to start pipeline");
-    } finally {
-      setPipelineStarting(false);
-    }
+    if (!rtxKeyStatus?.configured) { setShowSettings(true); setActionError("Configure your RTX Pipeline Key first."); return; }
+    try { setActionError(null); setPipelineStarting(true); await startPipelineAction({ parentProjectId, projectId }); refresh(); }
+    catch (err: any) { setActionError(err.message); }
+    finally { setPipelineStarting(false); }
   };
 
   const handleCancelPipeline = async () => {
-    try {
-      setActionError(null);
-      setCancelling(true);
-      await cancelPipelineAction({ parentProjectId, projectId });
-      refresh();
-    } catch (err: any) {
-      setActionError(err.message || "Failed to cancel pipeline");
-    } finally {
-      setCancelling(false);
-    }
+    try { setActionError(null); setCancelling(true); await cancelPipelineAction({ parentProjectId, projectId }); refresh(); }
+    catch (err: any) { setActionError(err.message); }
+    finally { setCancelling(false); }
+  };
+
+  const handleRetry = async () => {
+    try { setActionError(null); await retryPipelineAction({ parentProjectId, projectId }); refresh(); }
+    catch (err: any) { setActionError(err.message); }
   };
 
   const handleToggleAutoAdvance = async () => {
-    try {
-      setActionError(null);
-      await toggleAutoAdvanceAction({ parentProjectId, projectId });
-      refresh();
-    } catch (err: any) {
-      setActionError(err.message || "Failed to toggle auto-advance");
-    }
+    try { setActionError(null); await toggleAutoAdvanceAction({ parentProjectId, projectId }); refresh(); }
+    catch (err: any) { setActionError(err.message); }
   };
 
-  const handleAdvanceProject = async () => {
-    try {
-      setActionError(null);
-      setAdvancing(true);
-      await advanceProjectAction({ parentProjectId, projectId, phaseScope: `Phase ${project.phaseNumber || 1}` });
-      refresh();
-    } catch (err: any) {
-      setActionError(err.message || "Failed to start phase advancement");
-    } finally {
-      setAdvancing(false);
-    }
+  const handleAdvance = async () => {
+    try { setActionError(null); setAdvancing(true); await advanceProjectAction({ parentProjectId, projectId, phaseScope: `Phase ${project.phaseNumber || 1}` }); refresh(); }
+    catch (err: any) { setActionError(err.message); }
+    finally { setAdvancing(false); }
   };
 
-  const handleRetryPipeline = async () => {
-    try {
-      setActionError(null);
-      await retryPipelineAction({ parentProjectId, projectId });
-      refresh();
-    } catch (err: any) {
-      setActionError(err.message || "Failed to retry");
-    }
-  };
-
-  const handleApprovePhase = async () => {
+  const handleApprove = async () => {
     try {
       setActionError(null);
       await approvePhaseAction({ parentProjectId, projectId });
-      toast({
-        title: "Phase approved",
-        body: project.autoAdvance ? "Auto-advancing to next phase..." : "Phase marked as complete.",
-        tone: "success",
-        ttlMs: 5000,
-      });
+      toast({ title: "Phase approved", body: project.autoAdvance ? "Auto-advancing..." : "Complete.", tone: "success", ttlMs: 5000 });
       refresh();
-    } catch (err: any) {
-      setActionError(err.message || "Failed to approve");
-    }
+    } catch (err: any) { setActionError(err.message); }
   };
 
-  const handleRejectPhase = async () => {
+  const handleReject = async () => {
     try {
       setActionError(null);
       await rejectPhaseAction({ parentProjectId, projectId, reason: rejectReason || "Rejected by reviewer" });
-      setShowRejectForm(false);
-      setRejectReason("");
-      toast({
-        title: "Phase rejected",
-        body: rejectReason || "Rejected by reviewer",
-        tone: "error",
-        ttlMs: 5000,
-      });
+      setShowRejectForm(false); setRejectReason("");
+      toast({ title: "Phase rejected", body: rejectReason || "Rejected", tone: "error", ttlMs: 5000 });
       refresh();
-    } catch (err: any) {
-      setActionError(err.message || "Failed to reject");
-    }
+    } catch (err: any) { setActionError(err.message); }
   };
 
-  // Calculate total cost
-  const totalCost = (usage as LLMUsageRecord[]).reduce((sum, u) => sum + u.estimatedCostUsd, 0);
+  const handleSaveApiKey = async () => {
+    try { await saveApiKeyAction({ apiKey: apiKeyInput }); setApiKeyInput(""); setActionError(null); refreshApiKey(); }
+    catch (err: any) { setActionError(err.message); }
+  };
 
-  const canDecompose = project.prdText && (project.status === "draft" || project.status === "failed");
-  const isPlanning = project.status === "planning";
-  const canStartPipeline = project.status === "ready" && jobs.length > 0;
-  const isPipelineRunning = project.status === "building" || project.status === "reviewing";
-  const isAdvancing = project.status === "advancing";
-  const needsReview = project.status === "needs-review";
-  const canAdvance = project.status === "complete" && !phaseReport;
+  const handleSaveRtxKey = async () => {
+    try { await saveRtxKeyAction({ apiKey: rtxKeyInput }); setRtxKeyInput(""); setActionError(null); refreshRtxKey(); }
+    catch (err: any) { setActionError(err.message); }
+  };
 
-  // Toast when project needs review
-  if (needsReview) {
-    toast({
-      dedupeKey: `review-${projectId}`,
-      title: "Review needed",
-      body: `"${project.name}" pipeline complete — approve or reject.`,
-      tone: "warn",
-      ttlMs: 10000,
-    });
+  const handleUpdateJob = async (jobId: string, updates: Partial<BuildJob>) => {
+    try { setActionError(null); await updateJobAction({ parentProjectId, projectId, jobId, updates }); refresh(); }
+    catch (err: any) { setActionError(err.message); }
+  };
+
+  // ── Pipeline events as LogView entries ──
+  const logEntries: LogViewEntry[] = (pipelineEvents || []).map(evt => ({
+    timestamp: evt.timestamp,
+    level: evt.type.includes("failed") ? "error" as const
+      : evt.type.includes("complete") ? "info" as const
+      : evt.type.includes("started") ? "info" as const
+      : "debug" as const,
+    message: evt.message,
+  }));
+
+  // ── Progress log as LogView entries ──
+  const progressEntries: LogViewEntry[] = (progressData || []).map(p => ({
+    timestamp: p.timestamp, level: "info" as const, message: p.message,
+  }));
+
+  // ── Build action bar items ──
+  const actionItems: ActionBarItem[] = [];
+  if (canDecompose) {
+    actionItems.push({ label: decomposing ? "Analyzing..." : "Analyze PRD", actionKey: "decompose-prd", params: { parentProjectId, projectId }, variant: "primary" });
   }
-  const { pipeline } = data;
-  const myPipelineEvents = pipelineEvents || [];
+  if (canStartPipeline && !isPipelineRunning) {
+    actionItems.push({ label: pipelineStarting ? "Starting..." : "Start Build", actionKey: "start-pipeline", params: { parentProjectId, projectId }, variant: "primary" });
+  }
+  if (isPipelineRunning) {
+    actionItems.push({ label: cancelling ? "Cancelling..." : "Cancel Pipeline", actionKey: "cancel-pipeline", params: { parentProjectId, projectId }, variant: "destructive" });
+  }
+
+  // ── Step label ──
+  const stepLabel = (() => {
+    if (!pipeline) return "";
+    const steps = ["build", "review", "fix", "done"];
+    const labels: Record<string, string> = { build: "Building code", review: "Running reviews", fix: "Applying fixes", advance: "Advancing phase", done: "Complete" };
+    const current = pipeline.currentStep || "build";
+    const stepNum = steps.indexOf(current) + 1 || 1;
+    return `Step ${stepNum}/${steps.length}: ${labels[current] || current}`;
+  })();
 
   return (
-    <div>
-      {actionError && <ErrorBanner message={actionError} />}
+    <ErrorBoundary>
+      <div style={{ display: "grid", gap: "16px" }}>
 
-      {/* ── REVIEW GATE ── */}
-      {needsReview && (
-        <Card style={{
-          marginBottom: "16px",
-          borderColor: C.warning,
-          border: `2px solid ${C.warning}`,
-          background: "linear-gradient(135deg, #1e293b 0%, #1a1a2e 100%)",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-            <span style={{ fontSize: "20px" }}>&#9888;</span>
-            <h3 style={{ margin: 0, color: C.warning, fontSize: "16px" }}>Review Required</h3>
-            <Badge label={`Phase ${project.phaseNumber || 1}`} colors={{
-              [`Phase ${project.phaseNumber || 1}`]: { bg: "#4c1d95", text: "#c4b5fd" },
-            }} />
-          </div>
+        {/* Error */}
+        {actionError && <StatusBadge label={actionError} status="error" />}
 
-          <p style={{ color: C.text, fontSize: "13px", margin: "0 0 12px 0" }}>
-            Pipeline complete. Review the results below before approving or rejecting.
-          </p>
+        {/* ── REVIEW GATE ── */}
+        {needsReview && (
+          <div style={{ display: "grid", gap: "12px", padding: "16px", border: "2px solid orange", borderRadius: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <StatusBadge label="Review Required" status="warning" />
+              <StatusBadge label={`Phase ${project.phaseNumber || 1}`} status="info" />
+            </div>
 
-          {/* Review summary */}
-          <div style={{
-            display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "12px",
-          }}>
-            <div style={{
-              padding: "10px", backgroundColor: "#0f172a", borderRadius: "6px", textAlign: "center",
-            }}>
-              <div style={{ fontSize: "18px", fontWeight: 700, color: C.text }}>{jobs.length}</div>
-              <div style={{ fontSize: "11px", color: C.textDim }}>Build Jobs</div>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <MetricCard label="Build Jobs" value={jobs.length} />
+              <MetricCard label="Reviews" value={reviews.length} />
+              <MetricCard label="Cost" value={`$${totalCost.toFixed(4)}`} />
             </div>
-            <div style={{
-              padding: "10px", backgroundColor: "#0f172a", borderRadius: "6px", textAlign: "center",
-            }}>
-              <div style={{ fontSize: "18px", fontWeight: 700, color: C.text }}>{reviews.length}</div>
-              <div style={{ fontSize: "11px", color: C.textDim }}>Review Results</div>
-            </div>
-            <div style={{
-              padding: "10px", backgroundColor: "#0f172a", borderRadius: "6px", textAlign: "center",
-            }}>
-              <div style={{ fontSize: "18px", fontWeight: 700, color: C.success }}>${totalCost.toFixed(4)}</div>
-              <div style={{ fontSize: "11px", color: C.textDim }}>Total Cost</div>
-            </div>
-          </div>
 
-          {/* Tier verdict summary */}
-          {reviews.length > 0 && (
-            <div style={{ display: "flex", gap: "8px", marginBottom: "12px", flexWrap: "wrap" }}>
-              {(["haiku", "deepseek", "codex"] as const).map(tier => {
-                const tierReviews = reviews.filter(r => r.tier === tier);
-                const latest = tierReviews[tierReviews.length - 1];
-                if (!latest) return null;
-                const tc = TIER_COLORS[tier] || TIER_COLORS.haiku;
-                const vc = VERDICT_COLORS[latest.verdict] || VERDICT_COLORS.unknown;
-                return (
-                  <div key={tier} style={{
-                    display: "flex", alignItems: "center", gap: "6px",
-                    padding: "6px 10px", backgroundColor: "#0f172a",
-                    borderRadius: "6px", border: `1px solid ${C.border}`,
-                  }}>
-                    <span style={{
-                      padding: "2px 8px", borderRadius: "10px", fontSize: "10px",
-                      fontWeight: 600, backgroundColor: tc.bg, color: tc.text,
-                    }}>
-                      {tc.label}
-                    </span>
-                    <span style={{
-                      padding: "2px 8px", borderRadius: "10px", fontSize: "10px",
-                      fontWeight: 600, backgroundColor: vc.bg, color: vc.text,
-                      textTransform: "uppercase",
-                    }}>
-                      {latest.verdict}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+            {/* Tier verdicts */}
+            {reviews.length > 0 && (
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                {(["haiku", "deepseek", "codex"] as const).map(tier => {
+                  const latest = reviews.filter(r => r.tier === tier).pop();
+                  if (!latest) return null;
+                  return <StatusBadge key={tier} label={`${tier}: ${latest.verdict}`} status={statusVariant(latest.verdict)} />;
+                })}
+              </div>
+            )}
 
-          {pipeline?.completedAt && pipeline?.startedAt && (
-            <div style={{ fontSize: "12px", color: C.textDim, marginBottom: "12px" }}>
-              Pipeline duration: {(() => {
-                const ms = new Date(pipeline.completedAt).getTime() - new Date(pipeline.startedAt).getTime();
-                const mins = Math.floor(ms / 60000);
-                const secs = Math.floor((ms % 60000) / 1000);
-                return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
-              })()}
-            </div>
-          )}
+            {pipeline?.completedAt && pipeline?.startedAt && (
+              <KeyValueList pairs={[{
+                label: "Pipeline duration",
+                value: (() => {
+                  const ms = new Date(pipeline.completedAt).getTime() - new Date(pipeline.startedAt).getTime();
+                  const mins = Math.floor(ms / 60000);
+                  return mins > 0 ? `${mins}m ${Math.floor((ms % 60000) / 1000)}s` : `${Math.floor(ms / 1000)}s`;
+                })(),
+              }]} />
+            )}
 
-          {project.autoAdvance && (
-            <div style={{
-              fontSize: "12px", color: "#c4b5fd", marginBottom: "12px",
-              padding: "6px 10px", backgroundColor: "#4c1d95", borderRadius: "6px",
-            }}>
-              Auto-advance is ON — approving will generate Phase {(project.phaseNumber || 1) + 1} report and PRD.
-            </div>
-          )}
+            {project.autoAdvance && (
+              <StatusBadge label={`Auto-advance ON — will generate Phase ${(project.phaseNumber || 1) + 1}`} status="info" />
+            )}
 
-          {/* Approve / Reject buttons */}
-          {!showRejectForm ? (
-            <div style={{ display: "flex", gap: "8px" }}>
-              <Btn variant="primary" onClick={handleApprovePhase}
-                style={{ backgroundColor: "#059669", flex: 1, padding: "12px", fontSize: "14px", fontWeight: 600 }}>
-                Approve Phase {project.phaseNumber || 1}
-              </Btn>
-              <Btn variant="danger" onClick={() => setShowRejectForm(true)}
-                style={{ flex: 1, padding: "12px", fontSize: "14px", fontWeight: 600 }}>
-                Reject
-              </Btn>
-            </div>
-          ) : (
-            <div style={{ display: "grid", gap: "8px" }}>
-              <Label>Rejection reason</Label>
-              <TextArea
-                value={rejectReason}
-                onChange={setRejectReason}
-                placeholder="What needs to change before this phase can be approved?"
-                rows={3}
-              />
+            {!showRejectForm ? (
               <div style={{ display: "flex", gap: "8px" }}>
-                <Btn variant="danger" onClick={handleRejectPhase} style={{ flex: 1 }}>
-                  Confirm Reject
-                </Btn>
-                <Btn variant="ghost" onClick={() => { setShowRejectForm(false); setRejectReason(""); }}>
-                  Cancel
-                </Btn>
+                <button onClick={handleApprove} style={{ flex: 1, padding: "10px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: 600, background: "rgba(34,197,94,0.2)", color: "#4ade80" }}>
+                  Approve Phase {project.phaseNumber || 1}
+                </button>
+                <button onClick={() => setShowRejectForm(true)} style={{ flex: 1, padding: "10px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: 600, background: "rgba(239,68,68,0.2)", color: "#f87171" }}>
+                  Reject
+                </button>
               </div>
-            </div>
+            ) : (
+              <div style={{ display: "grid", gap: "8px" }}>
+                <FormField label="Rejection reason">
+                  <TextAreaInput value={rejectReason} onChange={setRejectReason} placeholder="What needs to change?" rows={3} />
+                </FormField>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button onClick={handleReject} style={{ padding: "8px 16px", borderRadius: "6px", border: "none", cursor: "pointer", background: "rgba(239,68,68,0.2)", color: "#f87171" }}>Confirm Reject</button>
+                  <button onClick={() => { setShowRejectForm(false); setRejectReason(""); }} style={{ padding: "8px 16px", borderRadius: "6px", border: "none", cursor: "pointer", background: "none", color: "inherit", opacity: 0.6 }}>Cancel</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Settings ── */}
+        {showSettings && (
+          <div style={{ display: "grid", gap: "12px", padding: "16px", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px" }}>
+            <div style={{ fontSize: "14px", fontWeight: 600 }}>Settings</div>
+            <FormField label={`Anthropic API Key ${apiKeyStatus?.configured ? "(configured)" : ""}`}>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <TextInput value={apiKeyInput} onChange={setApiKeyInput} placeholder="sk-ant-..." type="password" />
+                <button onClick={handleSaveApiKey} disabled={!apiKeyInput.trim()} style={{ padding: "8px 12px", borderRadius: "6px", border: "none", cursor: "pointer", background: "rgba(255,255,255,0.1)", color: "inherit", opacity: apiKeyInput.trim() ? 1 : 0.4 }}>Save</button>
+              </div>
+            </FormField>
+            <FormField label={`RTX Pipeline Key ${rtxKeyStatus?.configured ? "(configured)" : ""}`}>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <TextInput value={rtxKeyInput} onChange={setRtxKeyInput} placeholder="API key from RTX" type="password" />
+                <button onClick={handleSaveRtxKey} disabled={!rtxKeyInput.trim()} style={{ padding: "8px 12px", borderRadius: "6px", border: "none", cursor: "pointer", background: "rgba(255,255,255,0.1)", color: "inherit", opacity: rtxKeyInput.trim() ? 1 : 0.4 }}>Save</button>
+              </div>
+            </FormField>
+            <button onClick={() => setShowSettings(false)} style={{ padding: "6px 12px", borderRadius: "6px", border: "none", cursor: "pointer", background: "none", color: "inherit", opacity: 0.6, justifySelf: "end" }}>Close</button>
+          </div>
+        )}
+
+        {/* ── Header ── */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", opacity: 0.6, fontSize: "13px" }}>← Back</button>
+          <span style={{ fontSize: "18px", fontWeight: 600, flex: 1 }}>{project.name}</span>
+          <StatusBadge label={project.priority} status="info" />
+          <StatusBadge label={project.status} status={statusVariant(project.status)} />
+          <StatusBadge label={`Phase ${project.phaseNumber || 1}`} status="info" />
+        </div>
+
+        {/* ── Controls ── */}
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+          {!editing && (
+            <>
+              <button onClick={startEditing} style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer", fontSize: "12px", background: "rgba(0,0,0,0.2)", color: "inherit" }}>Edit</button>
+              <button onClick={handleDelete} style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid rgba(239,68,68,0.3)", cursor: "pointer", fontSize: "12px", background: "rgba(239,68,68,0.1)", color: "#f87171" }}>Delete</button>
+              {project.status === "failed" && jobs.length > 0 && (
+                <button onClick={handleRetry} style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid rgba(245,158,11,0.3)", cursor: "pointer", fontSize: "12px", background: "rgba(245,158,11,0.1)", color: "#fbbf24" }}>Retry Pipeline</button>
+              )}
+              {canAdvance && (
+                <button onClick={handleAdvance} disabled={advancing} style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid rgba(124,58,237,0.3)", cursor: "pointer", fontSize: "12px", background: "rgba(124,58,237,0.1)", color: "#c4b5fd" }}>
+                  {advancing ? "Advancing..." : `Advance to Phase ${(project.phaseNumber || 1) + 1}`}
+                </button>
+              )}
+              <div onClick={handleToggleAutoAdvance} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", padding: "4px 10px", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.1)" }}>
+                <div style={{ width: "28px", height: "14px", borderRadius: "7px", background: project.autoAdvance ? "rgba(124,58,237,0.6)" : "rgba(255,255,255,0.15)", position: "relative" }}>
+                  <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#fff", position: "absolute", top: "2px", left: project.autoAdvance ? "16px" : "2px", transition: "left 0.2s" }} />
+                </div>
+                <span style={{ fontSize: "11px", opacity: 0.7 }}>Auto-advance</span>
+              </div>
+              <button onClick={() => setShowSettings(true)} style={{ padding: "6px 8px", borderRadius: "6px", border: "none", cursor: "pointer", background: "none", color: "inherit", opacity: 0.5, fontSize: "12px" }}>&#9881;</button>
+            </>
           )}
-        </Card>
-      )}
+        </div>
 
-      {/* Settings Panel — API Keys */}
-      {showApiKeyConfig && (
-        <Card style={{ marginBottom: "16px", borderColor: C.accent }}>
-          <h4 style={{ margin: "0 0 12px 0", color: C.text, fontSize: "14px" }}>Settings</h4>
-
-          {/* Anthropic API Key */}
-          <div style={{ marginBottom: "16px" }}>
-            <Label>Anthropic API Key {apiKeyStatus?.configured && <span style={{ color: C.success, marginLeft: "6px" }}>configured</span>}</Label>
-            <p style={{ color: C.textMuted, fontSize: "12px", margin: "0 0 6px 0" }}>
-              Used for PRD decomposition (Sonnet).
-            </p>
-            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-              <input
-                type="password"
-                value={apiKeyInput}
-                onChange={(e) => setApiKeyInput(e.target.value)}
-                placeholder="sk-ant-..."
-                style={{
-                  flex: 1, padding: "10px 12px", backgroundColor: C.bgInput, color: C.text,
-                  border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box",
-                }}
-              />
-              <Btn variant="primary" onClick={handleSaveApiKey} disabled={!apiKeyInput.trim()}>Save</Btn>
-            </div>
-          </div>
-
-          {/* RTX Pipeline API Key */}
-          <div style={{ marginBottom: "12px" }}>
-            <Label>RTX Pipeline Key {rtxKeyStatus?.configured && <span style={{ color: C.success, marginLeft: "6px" }}>configured</span>}</Label>
-            <p style={{ color: C.textMuted, fontSize: "12px", margin: "0 0 6px 0" }}>
-              Authenticates with RTX orchestrator. Same value as ~/.popebot-api-key on RTX.
-            </p>
-            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-              <input
-                type="password"
-                value={rtxKeyInput}
-                onChange={(e) => setRtxKeyInput(e.target.value)}
-                placeholder="API key from RTX"
-                style={{
-                  flex: 1, padding: "10px 12px", backgroundColor: C.bgInput, color: C.text,
-                  border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box",
-                }}
-              />
-              <Btn variant="primary" onClick={handleSaveRtxKey} disabled={!rtxKeyInput.trim()}>Save</Btn>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <Btn variant="ghost" onClick={() => setShowApiKeyConfig(false)}>Close</Btn>
-          </div>
-        </Card>
-      )}
-
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
-        <Btn onClick={onBack} variant="ghost">← Back</Btn>
-        <h2 style={{ margin: 0, color: C.text, fontSize: "18px", flex: 1 }}>{project.name}</h2>
-        <Badge label={project.priority} colors={PRIORITY_COLORS} />
-        <Badge label={project.status} />
-      </div>
-
-      {/* Edit / View toggle */}
-      {editing ? (
-        <Card style={{ marginBottom: "16px" }}>
-          <div style={{ display: "grid", gap: "12px" }}>
-            <div>
-              <Label>Project Name</Label>
-              <Input value={editName} onChange={setEditName} placeholder="Project name" />
-            </div>
-            <div>
-              <Label>Priority</Label>
-              <Select
-                value={editPriority}
-                onChange={(v) => setEditPriority(v as ProjectPriority)}
-                options={[
-                  { value: "P0", label: "P0 — Critical" },
-                  { value: "P1", label: "P1 — High" },
-                  { value: "P2", label: "P2 — Medium" },
-                  { value: "P3", label: "P3 — Low" },
-                ]}
-              />
-            </div>
-            <div>
-              <Label>PRD</Label>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
-                <label style={{
-                  padding: "8px 16px", backgroundColor: "#374151", color: C.text,
-                  borderRadius: "6px", fontSize: "13px", fontWeight: 500, cursor: "pointer",
-                  border: `1px solid ${C.border}`,
-                }}>
-                  Upload File
-                  <input
-                    type="file"
-                    accept=".md,.txt,.markdown,.rst,.prd"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const reader = new FileReader();
-                      reader.onload = (ev) => {
-                        const text = ev.target?.result as string;
-                        if (text) setEditPrd(text);
-                      };
-                      reader.readAsText(file);
-                    }}
-                    style={{ display: "none" }}
-                  />
-                </label>
-                <span style={{ color: C.textDim, fontSize: "12px" }}>or edit below</span>
-              </div>
-              <TextArea value={editPrd} onChange={setEditPrd} placeholder="PRD text..." rows={12} />
-            </div>
+        {/* ── Edit form ── */}
+        {editing && (
+          <div style={{ display: "grid", gap: "12px", padding: "16px", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px" }}>
+            <FormField label="Name"><TextInput value={editName} onChange={setEditName} /></FormField>
+            <FormField label="Priority">
+              <SelectInput value={editPriority} onChange={(v) => setEditPriority(v as ProjectPriority)} options={[
+                { value: "P0", label: "P0 — Critical" }, { value: "P1", label: "P1 — High" },
+                { value: "P2", label: "P2 — Medium" }, { value: "P3", label: "P3 — Low" },
+              ]} />
+            </FormField>
+            <FormField label="PRD"><TextAreaInput value={editPrd} onChange={setEditPrd} rows={10} /></FormField>
             <div style={{ display: "flex", gap: "8px" }}>
-              <Btn onClick={handleSave} variant="primary">Save</Btn>
-              <Btn onClick={() => setEditing(false)} variant="ghost">Cancel</Btn>
+              <button onClick={handleSave} style={{ padding: "6px 12px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "12px", background: "rgba(255,255,255,0.1)", color: "inherit" }}>Save</button>
+              <button onClick={() => setEditing(false)} style={{ padding: "6px 12px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "12px", background: "none", color: "inherit", opacity: 0.6 }}>Cancel</button>
             </div>
           </div>
-        </Card>
-      ) : (
-        <div style={{ display: "grid", gap: "12px", marginBottom: "20px" }}>
-          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-            <Btn onClick={startEditing} variant="default">Edit Project</Btn>
-            <Btn onClick={handleDelete} variant="danger">Delete</Btn>
-            {project.status === "failed" && jobs.length > 0 && (
-              <Btn variant="primary" onClick={handleRetryPipeline}
-                style={{ backgroundColor: "#d97706" }}>
-                Retry Pipeline
-              </Btn>
-            )}
-            {canAdvance && (
-              <Btn variant="primary" onClick={handleAdvanceProject} disabled={advancing}
-                style={{ backgroundColor: "#7c3aed" }}>
-                {advancing ? "Advancing..." : `Advance to Phase ${(project.phaseNumber || 1) + 1}`}
-              </Btn>
-            )}
-            <div
-              onClick={handleToggleAutoAdvance}
-              style={{
-                display: "flex", alignItems: "center", gap: "6px", cursor: "pointer",
-                padding: "6px 12px", borderRadius: "6px",
-                backgroundColor: project.autoAdvance ? "#4c1d95" : "#374151",
-                border: `1px solid ${project.autoAdvance ? "#7c3aed" : C.border}`,
-              }}
-            >
-              <div style={{
-                width: "32px", height: "16px", borderRadius: "8px",
-                backgroundColor: project.autoAdvance ? "#7c3aed" : "#4b5563",
-                position: "relative", transition: "background-color 0.2s",
-              }}>
-                <div style={{
-                  width: "12px", height: "12px", borderRadius: "50%",
-                  backgroundColor: "#fff", position: "absolute", top: "2px",
-                  left: project.autoAdvance ? "18px" : "2px",
-                  transition: "left 0.2s",
-                }} />
-              </div>
-              <span style={{ fontSize: "12px", color: project.autoAdvance ? "#c4b5fd" : C.textMuted }}>
-                Auto-advance
-              </span>
-            </div>
-            <span style={{
-              fontSize: "12px", color: "#c4b5fd", fontWeight: 600,
-              padding: "4px 10px", borderRadius: "12px",
-              backgroundColor: "#4c1d95",
-            }}>
-              Phase {project.phaseNumber || 1}
-            </span>
-            {project.sourceProjectId && (
-              <span style={{ fontSize: "11px", color: C.textDim }}>
-                (from {project.sourceProjectId.slice(0, 8)})
-              </span>
-            )}
-          </div>
+        )}
 
-          {/* Decomposition Summary */}
-          {project.decompositionSummary && (
-            <Card>
-              <Label>Decomposition Summary</Label>
-              <p style={{ color: C.text, fontSize: "13px", lineHeight: "1.5", margin: 0 }}>
-                {project.decompositionSummary}
-              </p>
-            </Card>
-          )}
+        {/* ── Project info ── */}
+        {!editing && (
+          <>
+            <KeyValueList pairs={[
+              { label: "Repo", value: project.repoUrl || "Not set" },
+              { label: "Review Dir", value: project.reviewDir || "Not set" },
+              ...(project.decompositionSummary ? [{ label: "Summary", value: project.decompositionSummary }] : []),
+            ]} />
+            {project.prdText && <MarkdownBlock content={project.prdText} />}
+          </>
+        )}
 
-          {/* PRD Display */}
-          {project.prdText ? (
-            <Card>
-              <Label>PRD</Label>
-              <pre style={{
-                color: C.text, fontSize: "13px", lineHeight: "1.5",
-                whiteSpace: "pre-wrap", wordBreak: "break-word",
-                maxHeight: "300px", overflow: "auto", margin: 0,
-              }}>
-                {project.prdText}
-              </pre>
-            </Card>
-          ) : (
-            <Card style={{ border: "1px dashed #475569" }}>
-              <span style={{ color: C.textDim }}>No PRD attached. Edit this project to add one.</span>
-            </Card>
-          )}
-        </div>
-      )}
+        {/* ── Progress log ── */}
+        {progressEntries.length > 0 && (
+          <LogView entries={progressEntries} maxHeight="150px" autoScroll />
+        )}
 
-      {/* Progress Log */}
-      {(isPlanning || myProgress.length > 0) && (
-        <Card style={{ marginBottom: "16px", borderColor: C.accent }}>
-          <Label>Progress</Label>
-          <div style={{ maxHeight: "150px", overflow: "auto" }}>
-            {myProgress.map((evt, i) => (
-              <div key={i} style={{ fontSize: "12px", color: C.textMuted, padding: "2px 0", fontFamily: "monospace" }}>
-                <span style={{ color: C.textDim, marginRight: "8px" }}>
-                  {new Date(evt.timestamp).toLocaleTimeString()}
-                </span>
-                {evt.message}
-              </div>
-            ))}
-            {decomposing && myProgress.length === 0 && (
-              <div style={{ fontSize: "12px", color: C.accent }}>Starting decomposition...</div>
-            )}
-          </div>
-        </Card>
-      )}
+        {/* ── Action bar ── */}
+        {actionItems.length > 0 && (
+          <ActionBar actions={actionItems} onSuccess={() => refresh()} onError={(_, err) => setActionError(String(err))} />
+        )}
 
-      {/* Build Jobs Section */}
-      <div style={{ marginBottom: "16px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-          <h3 style={{ margin: 0, color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+        {/* ── Build jobs ── */}
+        <div>
+          <div style={{ fontSize: "13px", fontWeight: 600, opacity: 0.6, marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
             Build Jobs {jobs.length > 0 && `(${jobs.length})`}
-          </h3>
-          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-            {canDecompose && (
-              <Btn variant="primary" onClick={handleDecompose} disabled={decomposing}>
-                {decomposing ? "Analyzing..." : (jobs.length > 0 ? "Re-Analyze PRD" : "Analyze PRD")}
-              </Btn>
-            )}
-            {canStartPipeline && !isPipelineRunning && (
-              <Btn variant="primary" onClick={handleStartPipeline} disabled={pipelineStarting}
-                style={{ backgroundColor: "#059669" }}>
-                {pipelineStarting ? "Starting..." : "Start Build"}
-              </Btn>
-            )}
-            <Btn variant="ghost" onClick={() => setShowApiKeyConfig(true)} style={{ fontSize: "12px", padding: "6px 8px" }}>
-              &#9881;
-            </Btn>
           </div>
-        </div>
-        {jobs.length === 0 ? (
-          <Card style={{ border: "1px dashed #475569", textAlign: "center", padding: "24px" }}>
-            <span style={{ color: C.textDim }}>
-              {project.prdText
-                ? 'PRD attached. Click "Analyze PRD" to decompose into build jobs.'
-                : "Add a PRD first, then analyze it to generate build jobs."}
-            </span>
-          </Card>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            {jobs.map((job, i) => (
-              <EditableJobCard
-                key={job.id}
-                job={job}
-                index={i}
-                onSave={(updates) => handleUpdateJob(job.id, updates)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Cost Tracking */}
-      {totalCost > 0 && (
-        <Card style={{ marginBottom: "16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <Label>LLM Cost</Label>
-            <span style={{ color: C.success, fontSize: "14px", fontWeight: 600 }}>
-              ${totalCost.toFixed(4)}
-            </span>
-          </div>
-          <div style={{ marginTop: "4px" }}>
-            {(usage as LLMUsageRecord[]).map((u, i) => (
-              <div key={i} style={{ fontSize: "11px", color: C.textDim }}>
-                {u.model} ({u.purpose}) — {u.inputTokens.toLocaleString()} in / {u.outputTokens.toLocaleString()} out — ${u.estimatedCostUsd.toFixed(4)}
+          {jobs.length === 0 ? (
+            <div style={{ padding: "24px", textAlign: "center", opacity: 0.4, border: "1px dashed rgba(255,255,255,0.15)", borderRadius: "8px" }}>
+              {project.prdText ? 'Click "Analyze PRD" to decompose into build jobs.' : "Add a PRD first."}
+            </div>
+          ) : (
+            <DataTable
+              columns={[
+                { key: "name", header: "Job", width: "40%", render: (_v: any, row: any) => (
+                  <span style={{ cursor: "pointer" }} onClick={() => setExpandedJobId(expandedJobId === row.id ? null : row.id)}>
+                    {row.name}
+                  </span>
+                )},
+                { key: "targetFiles", header: "Files", render: (v: any) => (v as string[])?.join(", ") || "—" },
+                { key: "jobType", header: "Type", width: "80px" },
+                { key: "status", header: "Status", width: "100px", render: (v: any) => <StatusBadge label={v as string} status={statusVariant(v as string)} /> },
+                { key: "prUrl", header: "PR", width: "60px", render: (v: any) => v ? <a href={v as string} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", opacity: 0.7 }}>View</a> : "—" },
+              ]}
+              rows={jobs as any}
+              emptyMessage="No jobs"
+            />
+          )}
+          {expandedJobId && (() => {
+            const job = jobs.find(j => j.id === expandedJobId);
+            if (!job) return null;
+            return (
+              <div style={{ padding: "12px", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px", marginTop: "8px" }}>
+                <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}>{job.name}</div>
+                <MarkdownBlock content={job.description} />
+                <KeyValueList pairs={[
+                  { label: "Files", value: job.targetFiles.join(", ") },
+                  { label: "Dependencies", value: job.dependencies.join(", ") || "None" },
+                  { label: "Type", value: job.jobType },
+                ]} />
               </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {/* Pipeline Controls */}
-      <div style={{ marginBottom: "16px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-          <h3 style={{ margin: 0, color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            Pipeline
-          </h3>
-          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-            {isPipelineRunning && (
-              <Btn variant="danger" onClick={handleCancelPipeline} disabled={cancelling}>
-                {cancelling ? "Cancelling..." : "Cancel"}
-              </Btn>
-            )}
-          </div>
+            );
+          })()}
         </div>
 
-        {/* Pipeline status card */}
-        {pipeline && (
-          <Card style={{ marginBottom: "8px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                <Badge label={pipeline.status} />
-                <span style={{ fontSize: "12px", color: C.textMuted }}>
-                  {(() => {
-                    const steps = ["build", "review", "fix", "done"];
-                    const labels: Record<string, string> = {
-                      build: "Building code",
-                      review: "Running reviews (haiku → deepseek → codex)",
-                      fix: "Applying fixes",
-                      advance: "Advancing phase",
-                      done: "Complete",
-                    };
-                    const current = pipeline.currentStep || "build";
-                    const stepNum = steps.indexOf(current) + 1 || 1;
-                    const total = steps.length;
-                    return `Step ${stepNum}/${total}: ${labels[current] || current}`;
-                  })()}
-                </span>
+        {/* ── Cost ── */}
+        {totalCost > 0 && (
+          <MetricCard label="Total LLM Cost" value={`$${totalCost.toFixed(4)}`} />
+        )}
+
+        {/* ── Pipeline ── */}
+        <div>
+          <div style={{ fontSize: "13px", fontWeight: 600, opacity: 0.6, marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Pipeline</div>
+          {pipeline ? (
+            <div style={{ display: "grid", gap: "8px" }}>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                <StatusBadge label={pipeline.status} status={statusVariant(pipeline.status)} />
+                <span style={{ fontSize: "12px", opacity: 0.6 }}>{stepLabel}</span>
+                {pipeline.rtxPipelineId && <span style={{ fontSize: "11px", opacity: 0.4 }}>RTX: {pipeline.rtxPipelineId.slice(0, 8)}...</span>}
               </div>
-              <span style={{ fontSize: "11px", color: C.textDim }}>
-                {pipeline.rtxPipelineId ? `RTX: ${pipeline.rtxPipelineId.slice(0, 8)}...` : ""}
-              </span>
+              <KeyValueList pairs={[
+                { label: "Started", value: new Date(pipeline.startedAt).toLocaleString() },
+                ...(pipeline.completedAt ? [{ label: "Completed", value: new Date(pipeline.completedAt).toLocaleString() }] : []),
+              ]} />
             </div>
-            <div style={{ fontSize: "12px", color: C.textDim }}>
-              Started: {new Date(pipeline.startedAt).toLocaleString()}
-              {pipeline.completedAt && (
-                <span> | Completed: {new Date(pipeline.completedAt).toLocaleString()}</span>
-              )}
+          ) : (
+            <div style={{ padding: "24px", textAlign: "center", opacity: 0.4, border: "1px dashed rgba(255,255,255,0.15)", borderRadius: "8px" }}>
+              {canStartPipeline ? `${jobs.length} jobs ready. Click "Start Build".` : "Decompose a PRD first."}
             </div>
-          </Card>
+          )}
+        </div>
+
+        {/* ── Pipeline log ── */}
+        {logEntries.length > 0 && (
+          <LogView entries={logEntries} maxHeight="250px" autoScroll loading={isPipelineRunning} />
         )}
 
-        {/* Pipeline event log */}
-        {myPipelineEvents.length > 0 && (
-          <Card style={{ borderColor: isPipelineRunning ? C.accent : C.border }}>
-            <Label>Pipeline Events</Label>
-            <div style={{ maxHeight: "250px", overflow: "auto" }}>
-              {myPipelineEvents.map((evt, i) => (
-                <div key={i} style={{ fontSize: "12px", color: C.textMuted, padding: "2px 0", fontFamily: "monospace" }}>
-                  <span style={{ color: C.textDim, marginRight: "8px" }}>
-                    {new Date(evt.timestamp).toLocaleTimeString()}
-                  </span>
-                  <span style={{
-                    color: evt.type === "pipeline_complete" ? C.success
-                      : evt.type === "pipeline_failed" ? "#f87171"
-                      : C.text,
-                  }}>
-                    {evt.message}
-                  </span>
-                </div>
-              ))}
-              {isPipelineRunning && (
-                <div style={{ fontSize: "12px", color: C.accent, padding: "4px 0" }}>
-                  Pipeline running... (updates every 10s)
-                </div>
-              )}
+        {/* ── Advancing state ── */}
+        {isAdvancing && <StatusBadge label={`Advancing to Phase ${(project.phaseNumber || 1) + 1}...`} status="info" />}
+
+        {/* ── Phase report ── */}
+        {phaseReport && (
+          <div style={{ display: "grid", gap: "8px" }}>
+            <div style={{ fontSize: "13px", fontWeight: 600, opacity: 0.6, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Phase {phaseReport.phaseNumber} Report
             </div>
-          </Card>
-        )}
-
-        {/* Empty state */}
-        {!pipeline && !canStartPipeline && jobs.length === 0 && (
-          <Card style={{ border: "1px dashed #475569", textAlign: "center", padding: "24px" }}>
-            <span style={{ color: C.textDim }}>
-              Decompose a PRD into build jobs first, then start the pipeline.
-            </span>
-          </Card>
-        )}
-        {!pipeline && canStartPipeline && (
-          <Card style={{ border: "1px dashed #475569", textAlign: "center", padding: "24px" }}>
-            <span style={{ color: C.textDim }}>
-              {jobs.length} jobs ready. Click "Start Build" to launch the pipeline on RTX.
-            </span>
-          </Card>
-        )}
-      </div>
-
-      {/* Advancing State */}
-      {isAdvancing && (
-        <Card style={{ marginBottom: "16px", borderColor: "#7c3aed" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span style={{ color: "#c4b5fd", fontSize: "14px", fontWeight: 600 }}>
-              Advancing to Phase {(project.phaseNumber || 1) + 1}...
-            </span>
-            <span style={{ color: C.textDim, fontSize: "12px" }}>
-              Generating report and next-phase PRD on RTX
-            </span>
-          </div>
-        </Card>
-      )}
-
-      {/* Phase Report */}
-      {phaseReport && (
-        <div style={{ marginBottom: "16px" }}>
-          <h3 style={{ margin: "0 0 12px 0", color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            Phase {phaseReport.phaseNumber} Report
-          </h3>
-          <Card>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <span style={{ color: "#c4b5fd", fontSize: "13px", fontWeight: 600 }}>
-                Phase {phaseReport.phaseNumber} → {phaseReport.nextPhase}
-              </span>
-              <span style={{ fontSize: "11px", color: C.textDim }}>
-                {new Date(phaseReport.createdAt).toLocaleString()}
-              </span>
-            </div>
+            <KeyValueList pairs={[
+              { label: "Transition", value: `Phase ${phaseReport.phaseNumber} → ${phaseReport.nextPhase}` },
+              { label: "Generated", value: new Date(phaseReport.createdAt).toLocaleString() },
+              ...(phaseReport.nextProjectId ? [{ label: "Next project", value: phaseReport.nextProjectId.slice(0, 8) + "..." }] : []),
+            ]} />
             {phaseReport.report && (
-              <details style={{ marginBottom: "8px" }}>
-                <summary style={{ cursor: "pointer", color: C.textMuted, fontSize: "12px", marginBottom: "4px" }}>
-                  Completion Report ({phaseReport.report.length} chars)
-                </summary>
-                <pre style={{
-                  color: C.text, fontSize: "11px", lineHeight: "1.4",
-                  whiteSpace: "pre-wrap", wordBreak: "break-word",
-                  maxHeight: "300px", overflow: "auto", margin: "4px 0",
-                  padding: "8px", backgroundColor: "#0f172a", borderRadius: "4px",
-                }}>
-                  {phaseReport.report}
-                </pre>
+              <details>
+                <summary style={{ cursor: "pointer", fontSize: "12px", opacity: 0.6 }}>Completion Report ({phaseReport.report.length} chars)</summary>
+                <MarkdownBlock content={phaseReport.report} />
               </details>
             )}
             {phaseReport.nextPrd && (
               <details>
-                <summary style={{ cursor: "pointer", color: C.textMuted, fontSize: "12px", marginBottom: "4px" }}>
-                  Next Phase PRD ({phaseReport.nextPrd.length} chars)
-                </summary>
-                <pre style={{
-                  color: C.text, fontSize: "11px", lineHeight: "1.4",
-                  whiteSpace: "pre-wrap", wordBreak: "break-word",
-                  maxHeight: "300px", overflow: "auto", margin: "4px 0",
-                  padding: "8px", backgroundColor: "#0f172a", borderRadius: "4px",
-                }}>
-                  {phaseReport.nextPrd}
-                </pre>
+                <summary style={{ cursor: "pointer", fontSize: "12px", opacity: 0.6 }}>Next Phase PRD ({phaseReport.nextPrd.length} chars)</summary>
+                <MarkdownBlock content={phaseReport.nextPrd} />
               </details>
             )}
-            {phaseReport.nextProjectId && (
-              <div style={{ marginTop: "8px", fontSize: "12px", color: "#c4b5fd" }}>
-                Next project: {phaseReport.nextProjectId.slice(0, 8)}... (go back to project list to open it)
-              </div>
-            )}
-          </Card>
-        </div>
-      )}
+          </div>
+        )}
 
-      {/* Review Tiers */}
-      <div style={{ marginBottom: "16px" }}>
-        <h3 style={{ margin: "0 0 12px 0", color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-          Review Tiers {reviews.length > 0 && `(${reviews.length} results)`}
-        </h3>
-
-        {reviews.length === 0 ? (
-          <Card style={{ border: "1px dashed #475569", textAlign: "center", padding: "24px" }}>
-            <span style={{ color: C.textDim }}>
-              Review results will appear here during pipeline execution.
-              {isPipelineRunning && " Pipeline is running..."}
-            </span>
-          </Card>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            {/* Group reviews by round */}
-            {Array.from(new Set(reviews.map(r => r.round))).sort().map(round => {
-              const roundReviews = reviews.filter(r => r.round === round);
-              // Order: haiku, deepseek, codex
-              const tierOrder: ReviewTier[] = ["haiku", "deepseek", "codex"];
-              const sorted = tierOrder
-                .map(t => roundReviews.find(r => r.tier === t))
-                .filter((r): r is ReviewResult => !!r);
-
-              return (
-                <Card key={round} style={{ padding: "12px 16px" }}>
-                  <div style={{ fontSize: "12px", color: C.textMuted, marginBottom: "8px", fontWeight: 600 }}>
-                    Round {round}
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    {sorted.map(review => {
-                      const tc = TIER_COLORS[review.tier] || TIER_COLORS.haiku;
-                      const vc = VERDICT_COLORS[review.verdict] || VERDICT_COLORS.unknown;
-                      return (
-                        <div key={review.id} style={{
-                          display: "flex", justifyContent: "space-between", alignItems: "center",
-                          padding: "8px 12px", backgroundColor: "#0f172a", borderRadius: "6px",
-                          border: `1px solid ${C.border}`,
-                        }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                            <span style={{
-                              padding: "2px 10px", borderRadius: "12px", fontSize: "11px",
-                              fontWeight: 600, backgroundColor: tc.bg, color: tc.text,
-                            }}>
-                              {tc.label}
-                            </span>
-                            <span style={{ fontSize: "12px", color: C.textDim }}>
-                              {new Date(review.createdAt).toLocaleTimeString()}
-                            </span>
-                          </div>
-                          <span style={{
-                            padding: "2px 10px", borderRadius: "12px", fontSize: "11px",
-                            fontWeight: 600, backgroundColor: vc.bg, color: vc.text,
-                            textTransform: "uppercase",
-                          }}>
-                            {review.verdict}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </Card>
-              );
-            })}
+        {/* ── Review tiers ── */}
+        {reviews.length > 0 && (
+          <div>
+            <div style={{ fontSize: "13px", fontWeight: 600, opacity: 0.6, marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Review Tiers ({reviews.length} results)
+            </div>
+            <DataTable
+              columns={[
+                { key: "round", header: "Round", width: "60px" },
+                { key: "tier", header: "Tier", render: (v: any) => <StatusBadge label={v as string} status="info" /> },
+                { key: "verdict", header: "Verdict", render: (v: any) => <StatusBadge label={v as string} status={statusVariant(v as string)} /> },
+                { key: "createdAt", header: "Time", render: (v: any) => new Date(v as string).toLocaleTimeString() },
+              ]}
+              rows={reviews as any}
+            />
           </div>
         )}
       </div>
-    </div>
+    </ErrorBoundary>
   );
 }
 
 // =============================================================================
-// Main Projects View
+// Projects List View
 // =============================================================================
 
 function ProjectsView() {
@@ -1479,25 +987,16 @@ function ProjectsView() {
   const { data: projects, loading, error, refresh } = usePluginData<ManagedProject[]>("projects", {
     parentProjectId: parentProjectId || "",
   });
-
   const createProjectAction = usePluginAction("create-project");
-
   const [showCreate, setShowCreate] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  if (!parentProjectId) {
-    return (
-      <div style={{ padding: "24px", color: C.textMuted }}>
-        Open a project to see its automation.
-      </div>
-    );
-  }
+  if (!parentProjectId) return <div style={{ padding: "24px", opacity: 0.6 }}>Open a project to see its automation.</div>;
 
-  // Detail view
   if (selectedProjectId) {
     return (
-      <div style={{ padding: "24px", color: C.text, fontFamily: "system-ui" }}>
+      <div style={{ padding: "24px" }}>
         <ProjectDetailView
           projectId={selectedProjectId}
           parentProjectId={parentProjectId}
@@ -1507,77 +1006,51 @@ function ProjectsView() {
     );
   }
 
-  // List view
   const handleCreate = async (data: { name: string; prdText: string; priority: ProjectPriority; repoUrl: string; reviewDir: string }) => {
     try {
       setActionError(null);
       const result = await createProjectAction({
-        parentProjectId,
-        name: data.name,
-        prdText: data.prdText,
-        priority: data.priority,
-        repoUrl: data.repoUrl,
-        reviewDir: data.reviewDir,
+        parentProjectId, name: data.name, prdText: data.prdText,
+        priority: data.priority, repoUrl: data.repoUrl, reviewDir: data.reviewDir,
       }) as ManagedProject;
       setShowCreate(false);
       setSelectedProjectId(result.id);
       refresh();
-    } catch (err: any) {
-      setActionError(err.message || "Failed to create project");
-    }
+    } catch (err: any) { setActionError(err.message); }
   };
 
   return (
-    <div style={{ padding: "24px", color: C.text, fontFamily: "system-ui", minHeight: "400px" }}>
-      {actionError && <ErrorBanner message={actionError} />}
+    <div style={{ padding: "24px" }}>
+      {actionError && <StatusBadge label={actionError} status="error" />}
 
-      <div style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        marginBottom: "24px", paddingBottom: "16px", borderBottom: `1px solid ${C.border}`,
-      }}>
-        <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#f1f5f9" }}>
-          Projects
-        </h2>
-        <Btn onClick={() => setShowCreate(true)} variant="primary">+ New Project</Btn>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+        <span style={{ fontSize: "20px", fontWeight: 700 }}>Projects</span>
+        <button onClick={() => setShowCreate(true)} style={{ padding: "8px 16px", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "13px", background: "rgba(255,255,255,0.1)", color: "inherit" }}>+ New Project</button>
       </div>
 
-      {showCreate && (
-        <CreateProjectForm
-          onSubmit={handleCreate}
-          onCancel={() => setShowCreate(false)}
-        />
-      )}
+      {showCreate && <CreateProjectForm onSubmit={handleCreate} onCancel={() => setShowCreate(false)} />}
 
-      {loading && <div style={{ color: C.textMuted }}>Loading...</div>}
-      {error && <ErrorBanner message={error.message} />}
+      {loading && <Spinner label="Loading projects..." />}
+      {error && <StatusBadge label={error.message} status="error" />}
 
       {projects && projects.length === 0 && !showCreate ? (
-        <Card style={{ textAlign: "center", padding: "48px", border: "1px dashed #475569" }}>
-          <div style={{ fontSize: "36px", marginBottom: "16px" }}>&#x1f680;</div>
-          <div style={{ fontWeight: 600, marginBottom: "8px", color: "#cbd5e1" }}>No projects yet</div>
-          <div style={{ color: C.textMuted }}>
-            Click "+ New Project" to create one. Paste a PRD and let the system build it for you.
-          </div>
-        </Card>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {(projects || []).map((p) => (
-            <Card key={p.id} onClick={() => setSelectedProjectId(p.id)} style={{
-              display: "flex", justifyContent: "space-between", alignItems: "center",
-            }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <div style={{ fontWeight: 600, fontSize: "15px", color: "#f1f5f9" }}>{p.name}</div>
-                  <Badge label={p.priority} colors={PRIORITY_COLORS} />
-                </div>
-                <div style={{ fontSize: "12px", color: C.textDim, marginTop: "4px" }}>
-                  {p.prdText ? `PRD: ${p.prdText.slice(0, 80)}...` : "No PRD attached"}
-                </div>
-              </div>
-              <Badge label={p.status} />
-            </Card>
-          ))}
+        <div style={{ padding: "48px", textAlign: "center", opacity: 0.4, border: "1px dashed rgba(255,255,255,0.15)", borderRadius: "8px" }}>
+          <div style={{ marginBottom: "8px", fontWeight: 600 }}>No projects yet</div>
+          <div>Click "+ New Project" to create one.</div>
         </div>
+      ) : (
+        <DataTable
+          columns={[
+            { key: "name", header: "Project", render: (_v: any, row: any) => (
+              <span style={{ cursor: "pointer", fontWeight: 500 }} onClick={() => setSelectedProjectId(row.id)}>{row.name}</span>
+            )},
+            { key: "priority", header: "Priority", width: "80px", render: (v: any) => <StatusBadge label={v as string} status="info" /> },
+            { key: "status", header: "Status", width: "120px", render: (v: any) => <StatusBadge label={v as string} status={statusVariant(v as string)} /> },
+            { key: "phaseNumber", header: "Phase", width: "60px", render: (v: any) => `${v || 1}` },
+          ]}
+          rows={(projects || []) as any}
+          emptyMessage="No projects"
+        />
       )}
     </div>
   );
@@ -1595,33 +1068,19 @@ export function AutomationSidebar({ context }: PluginProjectSidebarItemProps) {
   const reviewCount = reviewData?.count || 0;
 
   return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: "10px",
-      padding: "10px 14px", color: C.text, fontSize: "14px", fontWeight: 500,
-    }}>
-      <span style={{
-        display: "inline-flex", alignItems: "center", justifyContent: "center",
-        width: "24px", height: "24px", borderRadius: "6px",
-        backgroundColor: C.accent, color: "#fff", fontSize: "13px", fontWeight: 700, flexShrink: 0,
-      }}>
-        A
-      </span>
+    <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", fontSize: "14px", fontWeight: 500 }}>
       <span>Automation</span>
       {reviewCount > 0 && (
-        <span style={{
-          marginLeft: "auto",
-          display: "inline-flex", alignItems: "center", justifyContent: "center",
-          minWidth: "20px", height: "20px", borderRadius: "10px",
-          backgroundColor: C.warning, color: "#000",
-          fontSize: "11px", fontWeight: 700, padding: "0 6px",
-        }}>
-          {reviewCount}
-        </span>
+        <StatusBadge label={`${reviewCount} review${reviewCount > 1 ? "s" : ""}`} status="warning" />
       )}
     </div>
   );
 }
 
 export function ProjectsTab({ context }: PluginDetailTabProps) {
-  return <ProjectsView />;
+  return (
+    <ErrorBoundary>
+      <ProjectsView />
+    </ErrorBoundary>
+  );
 }

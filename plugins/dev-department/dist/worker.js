@@ -113,6 +113,37 @@ const plugin = definePlugin({
             ctx.logger.info("project-automation: API key saved");
             return { ok: true };
         });
+        // ── Saved repos ──
+        ctx.data.register("saved-repos", async () => {
+            const repos = await ctx.state.get({
+                scopeKind: "instance", stateKey: "saved-repos", namespace: "automation",
+            });
+            return repos || [];
+        });
+        ctx.actions.register("save-repo", async (params) => {
+            const name = params.name;
+            const repoUrl = params.repoUrl;
+            const defaultReviewDir = params.defaultReviewDir || "";
+            if (!name || !repoUrl)
+                throw new Error("name and repoUrl required");
+            const repos = await ctx.state.get({
+                scopeKind: "instance", stateKey: "saved-repos", namespace: "automation",
+            }) || [];
+            repos.push({ id: crypto.randomUUID(), name, repoUrl, defaultReviewDir });
+            await ctx.state.set({ scopeKind: "instance", stateKey: "saved-repos", namespace: "automation" }, repos);
+            return { ok: true };
+        });
+        ctx.actions.register("delete-repo", async (params) => {
+            const repoId = params.repoId;
+            if (!repoId)
+                throw new Error("repoId required");
+            const repos = await ctx.state.get({
+                scopeKind: "instance", stateKey: "saved-repos", namespace: "automation",
+            }) || [];
+            const filtered = repos.filter(r => r.id !== repoId);
+            await ctx.state.set({ scopeKind: "instance", stateKey: "saved-repos", namespace: "automation" }, filtered);
+            return { ok: true };
+        });
         // ── Pipeline events data handler ──
         ctx.data.register("pipeline-events", async (params) => {
             const parentProjectId = params.parentProjectId;
