@@ -25,6 +25,17 @@ const plugin = definePlugin({
             const usage = await store.getUsage(ctx.state, parentProjectId, projectId);
             return { project, jobs, pipeline, reviews, usage };
         });
+        ctx.data.register("progress-log", async (params) => {
+            const parentProjectId = params.parentProjectId;
+            const projectId = params.projectId;
+            if (!parentProjectId || !projectId)
+                return [];
+            const log = await ctx.state.get({
+                scopeKind: "project", scopeId: parentProjectId, namespace: "automation",
+                stateKey: `progress:${projectId}`,
+            });
+            return log || [];
+        });
         // ── Action handlers (usePluginAction in UI) ──
         ctx.actions.register("create-project", async (params) => {
             const parentProjectId = params.parentProjectId;
@@ -110,16 +121,19 @@ const plugin = definePlugin({
             }
             // Update project status
             await store.updateProject(ctx.state, parentProjectId, projectId, { status: "planning" });
-            // Stream progress to UI
-            const emit = (message) => {
-                ctx.streams.emit("pipeline-progress", {
-                    type: "progress",
-                    projectId,
-                    message,
-                    timestamp: new Date().toISOString(),
-                });
+            // Write progress to state (UI reads via usePluginData)
+            const progressKey = {
+                scopeKind: "project", scopeId: parentProjectId, namespace: "automation",
+                stateKey: `progress:${projectId}`,
             };
-            emit("Starting PRD decomposition with Opus...");
+            // Clear previous progress log
+            await ctx.state.set(progressKey, []);
+            const emit = async (message) => {
+                const log = await ctx.state.get(progressKey) || [];
+                log.push({ message, timestamp: new Date().toISOString() });
+                await ctx.state.set(progressKey, log);
+            };
+            await emit("Starting PRD decomposition with Sonnet...");
             // Fire-and-forget: run decomposition in background so the action
             // returns immediately (avoids Paperclip's 30s RPC timeout).
             // Progress and results are streamed/saved via state + events.
@@ -147,7 +161,7 @@ const plugin = definePlugin({
                         status: "ready",
                         decompositionSummary: result.summary,
                     });
-                    emit(`Decomposition complete — ${result.jobs.length} build jobs created. Cost: $${usageEntry.estimatedCostUsd.toFixed(4)}`);
+                    await emit(`Decomposition complete — ${result.jobs.length} build jobs created. Cost: $${usageEntry.estimatedCostUsd.toFixed(4)}`);
                     ctx.logger.info("project-automation: PRD decomposed", {
                         projectId,
                         jobCount: result.jobs.length,
@@ -156,7 +170,7 @@ const plugin = definePlugin({
                 }
                 catch (err) {
                     await store.updateProject(ctx.state, parentProjectId, projectId, { status: "failed" });
-                    emit(`Decomposition failed: ${err.message}`);
+                    await emit(`Decomposition failed: ${err.message}`);
                     ctx.logger.error("project-automation: decomposition failed", { projectId, error: err.message });
                 }
             })();

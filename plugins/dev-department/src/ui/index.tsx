@@ -7,7 +7,6 @@ import {
   usePluginData,
   usePluginAction,
   useHostContext,
-  usePluginStream,
 } from "@paperclipai/plugin-sdk/ui";
 
 // =============================================================================
@@ -64,9 +63,7 @@ interface ProjectDetail {
   usage: LLMUsageRecord[];
 }
 
-interface PipelineProgressEvent {
-  type: string;
-  projectId: string;
+interface ProgressMessage {
   message: string;
   timestamp: string;
 }
@@ -439,7 +436,9 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const saveApiKeyAction = usePluginAction("save-api-key");
 
   const { data: apiKeyStatus, refresh: refreshApiKey } = usePluginData<{ configured: boolean }>("api-key-status", {});
-  const { events: progressEvents } = usePluginStream<PipelineProgressEvent>("pipeline-progress");
+  const { data: progressData } = usePluginData<ProgressMessage[]>("progress-log", {
+    parentProjectId, projectId,
+  });
 
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
@@ -458,7 +457,7 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const { project, jobs, usage } = data;
 
   // Filter progress events for this project
-  const myProgress = progressEvents.filter((e) => e.projectId === projectId);
+  const myProgress = progressData || [];
 
   const startEditing = () => {
     setEditName(project.name);
@@ -691,8 +690,8 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
         </div>
       )}
 
-      {/* Streaming Progress */}
-      {(decomposing || myProgress.length > 0) && (
+      {/* Progress Log */}
+      {(isPlanning || myProgress.length > 0) && (
         <Card style={{ marginBottom: "16px", borderColor: C.accent }}>
           <Label>Progress</Label>
           <div style={{ maxHeight: "150px", overflow: "auto" }}>

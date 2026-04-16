@@ -12,5 +12,5 @@ export interface DecompositionResult {
         estimatedCostUsd: number;
     };
 }
-export declare function decomposePrd(deps: LLMClientDeps, projectId: string, prdText: string, onProgress?: (message: string) => void): Promise<DecompositionResult>;
+export declare function decomposePrd(deps: LLMClientDeps, projectId: string, prdText: string, onProgress?: (message: string) => void | Promise<void>): Promise<DecompositionResult>;
 //# sourceMappingURL=prd-decomposer.d.ts.map

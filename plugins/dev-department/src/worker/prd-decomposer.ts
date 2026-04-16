@@ -118,9 +118,9 @@ export async function decomposePrd(
   deps: LLMClientDeps,
   projectId: string,
   prdText: string,
-  onProgress?: (message: string) => void,
+  onProgress?: (message: string) => void | Promise<void>,
 ): Promise<DecompositionResult> {
-  onProgress?.("Sending PRD to Opus for decomposition...");
+  await onProgress?.("Sending PRD to Sonnet for decomposition...");
 
   const { response, usageRecord } = await callLLM(deps, {
     model: "sonnet",
@@ -136,7 +136,7 @@ export async function decomposePrd(
     temperature: 0.2,
   });
 
-  onProgress?.(`Opus responded (${response.usage.inputTokens} in / ${response.usage.outputTokens} out tokens). Parsing...`);
+  await onProgress?.(`Sonnet responded (${response.usage.inputTokens} in / ${response.usage.outputTokens} out tokens). Parsing...`);
 
   // Extract JSON — strip markdown fencing if present
   let jsonText = response.content.trim();
@@ -164,7 +164,7 @@ export async function decomposePrd(
     throw new Error(`Decomposition validation failed:\n${errors.join("\n")}`);
   }
 
-  onProgress?.(`Validated ${parsed.jobs.length} build jobs. Saving...`);
+  await onProgress?.(`Validated ${parsed.jobs.length} build jobs. Saving...`);
 
   // Convert raw jobs to BuildJob entities
   const jobs: BuildJob[] = parsed.jobs.map((raw) => ({

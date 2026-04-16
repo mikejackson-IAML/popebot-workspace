@@ -28,6 +28,17 @@ const plugin = definePlugin({
       return { project, jobs, pipeline, reviews, usage };
     });
 
+    ctx.data.register("progress-log", async (params) => {
+      const parentProjectId = params.parentProjectId as string;
+      const projectId = params.projectId as string;
+      if (!parentProjectId || !projectId) return [];
+      const log = await ctx.state.get({
+        scopeKind: "project", scopeId: parentProjectId, namespace: "automation",
+        stateKey: `progress:${projectId}`,
+      }) as Array<{ message: string; timestamp: string }> | null;
+      return log || [];
+    });
+
     // ── Action handlers (usePluginAction in UI) ──
 
     ctx.actions.register("create-project", async (params) => {
@@ -129,17 +140,21 @@ const plugin = definePlugin({
       // Update project status
       await store.updateProject(ctx.state, parentProjectId, projectId, { status: "planning" });
 
-      // Stream progress to UI
-      const emit = (message: string) => {
-        ctx.streams.emit("pipeline-progress", {
-          type: "progress",
-          projectId,
-          message,
-          timestamp: new Date().toISOString(),
-        });
+      // Write progress to state (UI reads via usePluginData)
+      const progressKey = {
+        scopeKind: "project" as const, scopeId: parentProjectId, namespace: "automation",
+        stateKey: `progress:${projectId}`,
+      };
+      // Clear previous progress log
+      await ctx.state.set(progressKey, []);
+
+      const emit = async (message: string) => {
+        const log = (await ctx.state.get(progressKey) as Array<{ message: string; timestamp: string }> | null) || [];
+        log.push({ message, timestamp: new Date().toISOString() });
+        await ctx.state.set(progressKey, log);
       };
 
-      emit("Starting PRD decomposition with Opus...");
+      await emit("Starting PRD decomposition with Sonnet...");
 
       // Fire-and-forget: run decomposition in background so the action
       // returns immediately (avoids Paperclip's 30s RPC timeout).
@@ -178,7 +193,7 @@ const plugin = definePlugin({
             decompositionSummary: result.summary,
           });
 
-          emit(`Decomposition complete — ${result.jobs.length} build jobs created. Cost: $${usageEntry.estimatedCostUsd.toFixed(4)}`);
+          await emit(`Decomposition complete — ${result.jobs.length} build jobs created. Cost: $${usageEntry.estimatedCostUsd.toFixed(4)}`);
 
           ctx.logger.info("project-automation: PRD decomposed", {
             projectId,
@@ -187,7 +202,7 @@ const plugin = definePlugin({
           });
         } catch (err: any) {
           await store.updateProject(ctx.state, parentProjectId, projectId, { status: "failed" });
-          emit(`Decomposition failed: ${err.message}`);
+          await emit(`Decomposition failed: ${err.message}`);
           ctx.logger.error("project-automation: decomposition failed", { projectId, error: err.message });
         }
       })();
