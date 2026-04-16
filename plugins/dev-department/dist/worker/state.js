@@ -93,6 +93,20 @@ export async function setPipelineRun(state, parentProjectId, projectId, run) {
     await state.set(key(parentProjectId, `pipeline:${projectId}`), run);
 }
 // =============================================================================
+// Pipeline Events
+// =============================================================================
+export async function getPipelineEvents(state, parentProjectId, projectId) {
+    return (await state.get(key(parentProjectId, `pipeline-events:${projectId}`))) || [];
+}
+export async function addPipelineEvent(state, parentProjectId, projectId, event) {
+    const events = await getPipelineEvents(state, parentProjectId, projectId);
+    events.push(event);
+    await state.set(key(parentProjectId, `pipeline-events:${projectId}`), events);
+}
+export async function clearPipelineEvents(state, parentProjectId, projectId) {
+    await state.set(key(parentProjectId, `pipeline-events:${projectId}`), []);
+}
+// =============================================================================
 // Reviews
 // =============================================================================
 export async function getReviews(state, parentProjectId, projectId) {

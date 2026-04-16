@@ -6,6 +6,7 @@ import type {
   ManagedProject,
   BuildJob,
   PipelineRun,
+  PipelineEvent,
   ReviewResult,
   LLMUsage,
 } from "./types.js";
@@ -160,6 +161,37 @@ export async function setPipelineRun(
   run: PipelineRun
 ): Promise<void> {
   await state.set(key(parentProjectId, `pipeline:${projectId}`), run);
+}
+
+// =============================================================================
+// Pipeline Events
+// =============================================================================
+
+export async function getPipelineEvents(
+  state: PluginStateClient,
+  parentProjectId: string,
+  projectId: string
+): Promise<PipelineEvent[]> {
+  return ((await state.get(key(parentProjectId, `pipeline-events:${projectId}`))) as PipelineEvent[] | null) || [];
+}
+
+export async function addPipelineEvent(
+  state: PluginStateClient,
+  parentProjectId: string,
+  projectId: string,
+  event: PipelineEvent
+): Promise<void> {
+  const events = await getPipelineEvents(state, parentProjectId, projectId);
+  events.push(event);
+  await state.set(key(parentProjectId, `pipeline-events:${projectId}`), events);
+}
+
+export async function clearPipelineEvents(
+  state: PluginStateClient,
+  parentProjectId: string,
+  projectId: string
+): Promise<void> {
+  await state.set(key(parentProjectId, `pipeline-events:${projectId}`), []);
 }
 
 // =============================================================================

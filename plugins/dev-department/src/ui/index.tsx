@@ -55,10 +55,32 @@ interface LLMUsageRecord {
   timestamp: string;
 }
 
+type PipelineStatus = "queued" | "building" | "reviewing" | "fixing" | "complete" | "failed" | "cancelled";
+
+interface PipelineRun {
+  id: string;
+  projectId: string;
+  status: PipelineStatus;
+  currentStep: string;
+  reviewRound: number;
+  maxReviewRounds: number;
+  rtxPipelineId: string | null;
+  startedAt: string;
+  completedAt: string | null;
+}
+
+interface PipelineEvent {
+  type: string;
+  projectId: string;
+  pipelineRunId: string;
+  message: string;
+  timestamp: string;
+}
+
 interface ProjectDetail {
   project: ManagedProject;
   jobs: BuildJob[];
-  pipeline: unknown;
+  pipeline: PipelineRun | null;
   reviews: unknown[];
   usage: LLMUsageRecord[];
 }
@@ -102,6 +124,9 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   dispatched: { bg: "#1e3a5f", text: "#60a5fa" },
   merged: { bg: "#14532d", text: "#4ade80" },
   skipped: { bg: "#1f2937", text: "#6b7280" },
+  // pipeline statuses
+  queued: { bg: "#374151", text: "#9ca3af" },
+  cancelled: { bg: "#78350f", text: "#fbbf24" },
 };
 
 const PRIORITY_COLORS: Record<string, { bg: string; text: string }> = {
@@ -434,9 +459,14 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const decomposePrdAction = usePluginAction("decompose-prd");
   const updateJobAction = usePluginAction("update-job");
   const saveApiKeyAction = usePluginAction("save-api-key");
+  const startPipelineAction = usePluginAction("start-pipeline");
+  const cancelPipelineAction = usePluginAction("cancel-pipeline");
 
   const { data: apiKeyStatus, refresh: refreshApiKey } = usePluginData<{ configured: boolean }>("api-key-status", {});
   const { data: progressData } = usePluginData<ProgressMessage[]>("progress-log", {
+    parentProjectId, projectId,
+  });
+  const { data: pipelineEvents } = usePluginData<PipelineEvent[]>("pipeline-events", {
     parentProjectId, projectId,
   });
 
@@ -448,6 +478,8 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const [decomposing, setDecomposing] = useState(false);
   const [showApiKeyConfig, setShowApiKeyConfig] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState("");
+  const [pipelineStarting, setPipelineStarting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   if (loading) return <div style={{ padding: "24px", color: C.textMuted }}>Loading...</div>;
   if (error) return <ErrorBanner message={error.message} />;
@@ -530,11 +562,46 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
     }
   };
 
+  const handleStartPipeline = async () => {
+    try {
+      setActionError(null);
+      setPipelineStarting(true);
+      await startPipelineAction({
+        parentProjectId,
+        projectId,
+        reviewDir: "plugins/dev-department",
+        phaseScope: "",
+      });
+      refresh();
+    } catch (err: any) {
+      setActionError(err.message || "Failed to start pipeline");
+    } finally {
+      setPipelineStarting(false);
+    }
+  };
+
+  const handleCancelPipeline = async () => {
+    try {
+      setActionError(null);
+      setCancelling(true);
+      await cancelPipelineAction({ parentProjectId, projectId });
+      refresh();
+    } catch (err: any) {
+      setActionError(err.message || "Failed to cancel pipeline");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   // Calculate total cost
   const totalCost = (usage as LLMUsageRecord[]).reduce((sum, u) => sum + u.estimatedCostUsd, 0);
 
   const canDecompose = project.prdText && (project.status === "draft" || project.status === "failed");
   const isPlanning = project.status === "planning";
+  const canStartPipeline = project.status === "ready" && jobs.length > 0;
+  const isPipelineRunning = project.status === "building" || project.status === "reviewing";
+  const { pipeline } = data;
+  const myPipelineEvents = pipelineEvents || [];
 
   return (
     <div>
@@ -700,6 +767,12 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
                 {decomposing ? "Analyzing..." : (jobs.length > 0 ? "Re-Analyze PRD" : "Analyze PRD")}
               </Btn>
             )}
+            {canStartPipeline && !isPipelineRunning && (
+              <Btn variant="primary" onClick={handleStartPipeline} disabled={pipelineStarting}
+                style={{ backgroundColor: "#059669" }}>
+                {pipelineStarting ? "Starting..." : "Start Build"}
+              </Btn>
+            )}
             <Btn variant="ghost" onClick={() => setShowApiKeyConfig(true)} style={{ fontSize: "12px", padding: "6px 8px" }}>
               &#9881;
             </Btn>
@@ -746,14 +819,97 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
         </Card>
       )}
 
-      {/* Pipeline section placeholder */}
-      <Card style={{ border: "1px dashed #475569", marginBottom: "12px" }}>
-        <span style={{ color: C.textDim, fontSize: "13px" }}>Pipeline execution — coming in Phase 3</span>
-      </Card>
+      {/* Pipeline Controls */}
+      <div style={{ marginBottom: "16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+          <h3 style={{ margin: 0, color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Pipeline
+          </h3>
+          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+            {canStartPipeline && (
+              <Btn variant="primary" onClick={handleStartPipeline} disabled={pipelineStarting}>
+                {pipelineStarting ? "Starting..." : "Start Build"}
+              </Btn>
+            )}
+            {isPipelineRunning && (
+              <Btn variant="danger" onClick={handleCancelPipeline} disabled={cancelling}>
+                {cancelling ? "Cancelling..." : "Cancel"}
+              </Btn>
+            )}
+          </div>
+        </div>
 
-      {/* Reviews placeholder */}
+        {/* Pipeline status card */}
+        {pipeline && (
+          <Card style={{ marginBottom: "8px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <Badge label={pipeline.status} />
+                <span style={{ fontSize: "12px", color: C.textMuted }}>
+                  Step: {pipeline.currentStep}
+                </span>
+              </div>
+              <span style={{ fontSize: "11px", color: C.textDim }}>
+                {pipeline.rtxPipelineId ? `RTX: ${pipeline.rtxPipelineId.slice(0, 8)}...` : ""}
+              </span>
+            </div>
+            <div style={{ fontSize: "12px", color: C.textDim }}>
+              Started: {new Date(pipeline.startedAt).toLocaleString()}
+              {pipeline.completedAt && (
+                <span> | Completed: {new Date(pipeline.completedAt).toLocaleString()}</span>
+              )}
+            </div>
+          </Card>
+        )}
+
+        {/* Pipeline event log */}
+        {myPipelineEvents.length > 0 && (
+          <Card style={{ borderColor: isPipelineRunning ? C.accent : C.border }}>
+            <Label>Pipeline Events</Label>
+            <div style={{ maxHeight: "250px", overflow: "auto" }}>
+              {myPipelineEvents.map((evt, i) => (
+                <div key={i} style={{ fontSize: "12px", color: C.textMuted, padding: "2px 0", fontFamily: "monospace" }}>
+                  <span style={{ color: C.textDim, marginRight: "8px" }}>
+                    {new Date(evt.timestamp).toLocaleTimeString()}
+                  </span>
+                  <span style={{
+                    color: evt.type === "pipeline_complete" ? C.success
+                      : evt.type === "pipeline_failed" ? "#f87171"
+                      : C.text,
+                  }}>
+                    {evt.message}
+                  </span>
+                </div>
+              ))}
+              {isPipelineRunning && (
+                <div style={{ fontSize: "12px", color: C.accent, padding: "4px 0" }}>
+                  Pipeline running... (updates every 10s)
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
+
+        {/* Empty state */}
+        {!pipeline && !canStartPipeline && jobs.length === 0 && (
+          <Card style={{ border: "1px dashed #475569", textAlign: "center", padding: "24px" }}>
+            <span style={{ color: C.textDim }}>
+              Decompose a PRD into build jobs first, then start the pipeline.
+            </span>
+          </Card>
+        )}
+        {!pipeline && canStartPipeline && (
+          <Card style={{ border: "1px dashed #475569", textAlign: "center", padding: "24px" }}>
+            <span style={{ color: C.textDim }}>
+              {jobs.length} jobs ready. Click "Start Build" to launch the pipeline on RTX.
+            </span>
+          </Card>
+        )}
+      </div>
+
+      {/* Reviews placeholder — Phase 4 */}
       <Card style={{ border: "1px dashed #475569" }}>
-        <span style={{ color: C.textDim, fontSize: "13px" }}>Reviews and cost tracking — coming in Phase 4</span>
+        <span style={{ color: C.textDim, fontSize: "13px" }}>Multi-tier reviews — coming in Phase 4</span>
       </Card>
     </div>
   );

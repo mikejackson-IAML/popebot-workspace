@@ -33,6 +33,9 @@ const STATUS_COLORS = {
     dispatched: { bg: "#1e3a5f", text: "#60a5fa" },
     merged: { bg: "#14532d", text: "#4ade80" },
     skipped: { bg: "#1f2937", text: "#6b7280" },
+    // pipeline statuses
+    queued: { bg: "#374151", text: "#9ca3af" },
+    cancelled: { bg: "#78350f", text: "#fbbf24" },
 };
 const PRIORITY_COLORS = {
     P0: { bg: "#7f1d1d", text: "#fca5a5" },
@@ -173,8 +176,13 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     const decomposePrdAction = usePluginAction("decompose-prd");
     const updateJobAction = usePluginAction("update-job");
     const saveApiKeyAction = usePluginAction("save-api-key");
+    const startPipelineAction = usePluginAction("start-pipeline");
+    const cancelPipelineAction = usePluginAction("cancel-pipeline");
     const { data: apiKeyStatus, refresh: refreshApiKey } = usePluginData("api-key-status", {});
     const { data: progressData } = usePluginData("progress-log", {
+        parentProjectId, projectId,
+    });
+    const { data: pipelineEvents } = usePluginData("pipeline-events", {
         parentProjectId, projectId,
     });
     const [editing, setEditing] = useState(false);
@@ -185,6 +193,8 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     const [decomposing, setDecomposing] = useState(false);
     const [showApiKeyConfig, setShowApiKeyConfig] = useState(false);
     const [apiKeyInput, setApiKeyInput] = useState("");
+    const [pipelineStarting, setPipelineStarting] = useState(false);
+    const [cancelling, setCancelling] = useState(false);
     if (loading)
         return _jsx("div", { style: { padding: "24px", color: C.textMuted }, children: "Loading..." });
     if (error)
@@ -266,10 +276,47 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
             setActionError(err.message || "Failed to update job");
         }
     };
+    const handleStartPipeline = async () => {
+        try {
+            setActionError(null);
+            setPipelineStarting(true);
+            await startPipelineAction({
+                parentProjectId,
+                projectId,
+                reviewDir: "plugins/dev-department",
+                phaseScope: "",
+            });
+            refresh();
+        }
+        catch (err) {
+            setActionError(err.message || "Failed to start pipeline");
+        }
+        finally {
+            setPipelineStarting(false);
+        }
+    };
+    const handleCancelPipeline = async () => {
+        try {
+            setActionError(null);
+            setCancelling(true);
+            await cancelPipelineAction({ parentProjectId, projectId });
+            refresh();
+        }
+        catch (err) {
+            setActionError(err.message || "Failed to cancel pipeline");
+        }
+        finally {
+            setCancelling(false);
+        }
+    };
     // Calculate total cost
     const totalCost = usage.reduce((sum, u) => sum + u.estimatedCostUsd, 0);
     const canDecompose = project.prdText && (project.status === "draft" || project.status === "failed");
     const isPlanning = project.status === "planning";
+    const canStartPipeline = project.status === "ready" && jobs.length > 0;
+    const isPipelineRunning = project.status === "building" || project.status === "reviewing";
+    const { pipeline } = data;
+    const myPipelineEvents = pipelineEvents || [];
     return (_jsxs("div", { children: [actionError && _jsx(ErrorBanner, { message: actionError }), showApiKeyConfig && (_jsxs(Card, { style: { marginBottom: "16px", borderColor: C.accent }, children: [_jsx("h4", { style: { margin: "0 0 8px 0", color: C.text, fontSize: "14px" }, children: "Anthropic API Key" }), _jsx("p", { style: { color: C.textMuted, fontSize: "12px", margin: "0 0 8px 0" }, children: "Enter your API key from console.anthropic.com. Used for Opus PRD decomposition." }), _jsxs("div", { style: { display: "flex", gap: "8px", alignItems: "center" }, children: [_jsx("input", { type: "password", value: apiKeyInput, onChange: (e) => setApiKeyInput(e.target.value), placeholder: "sk-ant-...", style: {
                                     flex: 1, padding: "10px 12px", backgroundColor: C.bgInput, color: C.text,
                                     border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box",
@@ -297,9 +344,13 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
                                     color: C.text, fontSize: "13px", lineHeight: "1.5",
                                     whiteSpace: "pre-wrap", wordBreak: "break-word",
                                     maxHeight: "300px", overflow: "auto", margin: 0,
-                                }, children: project.prdText })] })) : (_jsx(Card, { style: { border: "1px dashed #475569" }, children: _jsx("span", { style: { color: C.textDim }, children: "No PRD attached. Edit this project to add one." }) }))] })), (isPlanning || myProgress.length > 0) && (_jsxs(Card, { style: { marginBottom: "16px", borderColor: C.accent }, children: [_jsx(Label, { children: "Progress" }), _jsxs("div", { style: { maxHeight: "150px", overflow: "auto" }, children: [myProgress.map((evt, i) => (_jsxs("div", { style: { fontSize: "12px", color: C.textMuted, padding: "2px 0", fontFamily: "monospace" }, children: [_jsx("span", { style: { color: C.textDim, marginRight: "8px" }, children: new Date(evt.timestamp).toLocaleTimeString() }), evt.message] }, i))), decomposing && myProgress.length === 0 && (_jsx("div", { style: { fontSize: "12px", color: C.accent }, children: "Starting decomposition..." }))] })] })), _jsxs("div", { style: { marginBottom: "16px" }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }, children: [_jsxs("h3", { style: { margin: 0, color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }, children: ["Build Jobs ", jobs.length > 0 && `(${jobs.length})`] }), _jsxs("div", { style: { display: "flex", gap: "6px", alignItems: "center" }, children: [canDecompose && (_jsx(Btn, { variant: "primary", onClick: handleDecompose, disabled: decomposing, children: decomposing ? "Analyzing..." : (jobs.length > 0 ? "Re-Analyze PRD" : "Analyze PRD") })), _jsx(Btn, { variant: "ghost", onClick: () => setShowApiKeyConfig(true), style: { fontSize: "12px", padding: "6px 8px" }, children: "\u2699" })] })] }), jobs.length === 0 ? (_jsx(Card, { style: { border: "1px dashed #475569", textAlign: "center", padding: "24px" }, children: _jsx("span", { style: { color: C.textDim }, children: project.prdText
+                                }, children: project.prdText })] })) : (_jsx(Card, { style: { border: "1px dashed #475569" }, children: _jsx("span", { style: { color: C.textDim }, children: "No PRD attached. Edit this project to add one." }) }))] })), (isPlanning || myProgress.length > 0) && (_jsxs(Card, { style: { marginBottom: "16px", borderColor: C.accent }, children: [_jsx(Label, { children: "Progress" }), _jsxs("div", { style: { maxHeight: "150px", overflow: "auto" }, children: [myProgress.map((evt, i) => (_jsxs("div", { style: { fontSize: "12px", color: C.textMuted, padding: "2px 0", fontFamily: "monospace" }, children: [_jsx("span", { style: { color: C.textDim, marginRight: "8px" }, children: new Date(evt.timestamp).toLocaleTimeString() }), evt.message] }, i))), decomposing && myProgress.length === 0 && (_jsx("div", { style: { fontSize: "12px", color: C.accent }, children: "Starting decomposition..." }))] })] })), _jsxs("div", { style: { marginBottom: "16px" }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }, children: [_jsxs("h3", { style: { margin: 0, color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }, children: ["Build Jobs ", jobs.length > 0 && `(${jobs.length})`] }), _jsxs("div", { style: { display: "flex", gap: "6px", alignItems: "center" }, children: [canDecompose && (_jsx(Btn, { variant: "primary", onClick: handleDecompose, disabled: decomposing, children: decomposing ? "Analyzing..." : (jobs.length > 0 ? "Re-Analyze PRD" : "Analyze PRD") })), canStartPipeline && !isPipelineRunning && (_jsx(Btn, { variant: "primary", onClick: handleStartPipeline, disabled: pipelineStarting, style: { backgroundColor: "#059669" }, children: pipelineStarting ? "Starting..." : "Start Build" })), _jsx(Btn, { variant: "ghost", onClick: () => setShowApiKeyConfig(true), style: { fontSize: "12px", padding: "6px 8px" }, children: "\u2699" })] })] }), jobs.length === 0 ? (_jsx(Card, { style: { border: "1px dashed #475569", textAlign: "center", padding: "24px" }, children: _jsx("span", { style: { color: C.textDim }, children: project.prdText
                                 ? 'PRD attached. Click "Analyze PRD" to decompose into build jobs.'
-                                : "Add a PRD first, then analyze it to generate build jobs." }) })) : (_jsx("div", { style: { display: "flex", flexDirection: "column", gap: "6px" }, children: jobs.map((job, i) => (_jsx(EditableJobCard, { job: job, index: i, onSave: (updates) => handleUpdateJob(job.id, updates) }, job.id))) }))] }), totalCost > 0 && (_jsxs(Card, { style: { marginBottom: "16px" }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" }, children: [_jsx(Label, { children: "LLM Cost" }), _jsxs("span", { style: { color: C.success, fontSize: "14px", fontWeight: 600 }, children: ["$", totalCost.toFixed(4)] })] }), _jsx("div", { style: { marginTop: "4px" }, children: usage.map((u, i) => (_jsxs("div", { style: { fontSize: "11px", color: C.textDim }, children: [u.model, " (", u.purpose, ") \u2014 ", u.inputTokens.toLocaleString(), " in / ", u.outputTokens.toLocaleString(), " out \u2014 $", u.estimatedCostUsd.toFixed(4)] }, i))) })] })), _jsx(Card, { style: { border: "1px dashed #475569", marginBottom: "12px" }, children: _jsx("span", { style: { color: C.textDim, fontSize: "13px" }, children: "Pipeline execution \u2014 coming in Phase 3" }) }), _jsx(Card, { style: { border: "1px dashed #475569" }, children: _jsx("span", { style: { color: C.textDim, fontSize: "13px" }, children: "Reviews and cost tracking \u2014 coming in Phase 4" }) })] }));
+                                : "Add a PRD first, then analyze it to generate build jobs." }) })) : (_jsx("div", { style: { display: "flex", flexDirection: "column", gap: "6px" }, children: jobs.map((job, i) => (_jsx(EditableJobCard, { job: job, index: i, onSave: (updates) => handleUpdateJob(job.id, updates) }, job.id))) }))] }), totalCost > 0 && (_jsxs(Card, { style: { marginBottom: "16px" }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" }, children: [_jsx(Label, { children: "LLM Cost" }), _jsxs("span", { style: { color: C.success, fontSize: "14px", fontWeight: 600 }, children: ["$", totalCost.toFixed(4)] })] }), _jsx("div", { style: { marginTop: "4px" }, children: usage.map((u, i) => (_jsxs("div", { style: { fontSize: "11px", color: C.textDim }, children: [u.model, " (", u.purpose, ") \u2014 ", u.inputTokens.toLocaleString(), " in / ", u.outputTokens.toLocaleString(), " out \u2014 $", u.estimatedCostUsd.toFixed(4)] }, i))) })] })), _jsxs("div", { style: { marginBottom: "16px" }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }, children: [_jsx("h3", { style: { margin: 0, color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }, children: "Pipeline" }), _jsxs("div", { style: { display: "flex", gap: "6px", alignItems: "center" }, children: [canStartPipeline && (_jsx(Btn, { variant: "primary", onClick: handleStartPipeline, disabled: pipelineStarting, children: pipelineStarting ? "Starting..." : "Start Build" })), isPipelineRunning && (_jsx(Btn, { variant: "danger", onClick: handleCancelPipeline, disabled: cancelling, children: cancelling ? "Cancelling..." : "Cancel" }))] })] }), pipeline && (_jsxs(Card, { style: { marginBottom: "8px" }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }, children: [_jsxs("div", { style: { display: "flex", gap: "8px", alignItems: "center" }, children: [_jsx(Badge, { label: pipeline.status }), _jsxs("span", { style: { fontSize: "12px", color: C.textMuted }, children: ["Step: ", pipeline.currentStep] })] }), _jsx("span", { style: { fontSize: "11px", color: C.textDim }, children: pipeline.rtxPipelineId ? `RTX: ${pipeline.rtxPipelineId.slice(0, 8)}...` : "" })] }), _jsxs("div", { style: { fontSize: "12px", color: C.textDim }, children: ["Started: ", new Date(pipeline.startedAt).toLocaleString(), pipeline.completedAt && (_jsxs("span", { children: [" | Completed: ", new Date(pipeline.completedAt).toLocaleString()] }))] })] })), myPipelineEvents.length > 0 && (_jsxs(Card, { style: { borderColor: isPipelineRunning ? C.accent : C.border }, children: [_jsx(Label, { children: "Pipeline Events" }), _jsxs("div", { style: { maxHeight: "250px", overflow: "auto" }, children: [myPipelineEvents.map((evt, i) => (_jsxs("div", { style: { fontSize: "12px", color: C.textMuted, padding: "2px 0", fontFamily: "monospace" }, children: [_jsx("span", { style: { color: C.textDim, marginRight: "8px" }, children: new Date(evt.timestamp).toLocaleTimeString() }), _jsx("span", { style: {
+                                                    color: evt.type === "pipeline_complete" ? C.success
+                                                        : evt.type === "pipeline_failed" ? "#f87171"
+                                                            : C.text,
+                                                }, children: evt.message })] }, i))), isPipelineRunning && (_jsx("div", { style: { fontSize: "12px", color: C.accent, padding: "4px 0" }, children: "Pipeline running... (updates every 10s)" }))] })] })), !pipeline && !canStartPipeline && jobs.length === 0 && (_jsx(Card, { style: { border: "1px dashed #475569", textAlign: "center", padding: "24px" }, children: _jsx("span", { style: { color: C.textDim }, children: "Decompose a PRD into build jobs first, then start the pipeline." }) })), !pipeline && canStartPipeline && (_jsx(Card, { style: { border: "1px dashed #475569", textAlign: "center", padding: "24px" }, children: _jsxs("span", { style: { color: C.textDim }, children: [jobs.length, " jobs ready. Click \"Start Build\" to launch the pipeline on RTX."] }) }))] }), _jsx(Card, { style: { border: "1px dashed #475569" }, children: _jsx("span", { style: { color: C.textDim, fontSize: "13px" }, children: "Multi-tier reviews \u2014 coming in Phase 4" }) })] }));
 }
 // =============================================================================
 // Main Projects View
