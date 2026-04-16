@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import type {
   PluginProjectSidebarItemProps,
   PluginDetailTabProps,
@@ -448,7 +448,6 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const [decomposing, setDecomposing] = useState(false);
   const [showApiKeyConfig, setShowApiKeyConfig] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState("");
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   if (loading) return <div style={{ padding: "24px", color: C.textMuted }}>Loading...</div>;
   if (error) return <ErrorBanner message={error.message} />;
@@ -537,26 +536,21 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const canDecompose = project.prdText && (project.status === "draft" || project.status === "failed");
   const isPlanning = project.status === "planning";
 
-  // Poll only while decomposing/planning — single refresh when done
+  // Poll while planning, stop when done
   useEffect(() => {
-    if (isPlanning || decomposing) {
-      if (!pollRef.current) {
-        pollRef.current = setInterval(() => { refresh(); }, 8000);
-      }
-    } else {
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-      if (decomposing) setDecomposing(false);
+    if (!isPlanning) {
+      return;
     }
-    return () => {
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-    };
-  }, [isPlanning, decomposing]);
+    const id = setInterval(() => { refresh(); }, 8000);
+    return () => clearInterval(id);
+  }, [isPlanning]);
+
+  // Clear decomposing flag when project leaves planning
+  useEffect(() => {
+    if (!isPlanning && decomposing) {
+      setDecomposing(false);
+    }
+  }, [isPlanning]);
 
   return (
     <div>
