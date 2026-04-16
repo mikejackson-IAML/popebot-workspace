@@ -118,6 +118,15 @@ export async function addReview(state, parentProjectId, projectId, review) {
     await state.set(key(parentProjectId, `reviews:${projectId}`), reviews);
 }
 // =============================================================================
+// Phase Reports
+// =============================================================================
+export async function getPhaseReport(state, parentProjectId, projectId) {
+    return (await state.get(key(parentProjectId, `phase-report:${projectId}`)));
+}
+export async function setPhaseReport(state, parentProjectId, projectId, report) {
+    await state.set(key(parentProjectId, `phase-report:${projectId}`), report);
+}
+// =============================================================================
 // LLM Usage / Cost Tracking
 // =============================================================================
 export async function getUsage(state, parentProjectId, projectId) {

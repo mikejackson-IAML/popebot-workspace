@@ -1,5 +1,5 @@
 import type { PluginStateClient } from "@paperclipai/plugin-sdk";
-import type { ManagedProject, BuildJob, PipelineRun, PipelineEvent, ReviewResult, LLMUsage } from "./types.js";
+import type { ManagedProject, BuildJob, PipelineRun, PipelineEvent, ReviewResult, LLMUsage, PhaseReport } from "./types.js";
 export declare function listProjects(state: PluginStateClient, parentProjectId: string): Promise<ManagedProject[]>;
 export declare function getProject(state: PluginStateClient, parentProjectId: string, projectId: string): Promise<ManagedProject | null>;
 export declare function createProject(state: PluginStateClient, parentProjectId: string, data: Omit<ManagedProject, "id" | "createdAt" | "updatedAt">): Promise<ManagedProject>;
@@ -15,6 +15,8 @@ export declare function addPipelineEvent(state: PluginStateClient, parentProject
 export declare function clearPipelineEvents(state: PluginStateClient, parentProjectId: string, projectId: string): Promise<void>;
 export declare function getReviews(state: PluginStateClient, parentProjectId: string, projectId: string): Promise<ReviewResult[]>;
 export declare function addReview(state: PluginStateClient, parentProjectId: string, projectId: string, review: ReviewResult): Promise<void>;
+export declare function getPhaseReport(state: PluginStateClient, parentProjectId: string, projectId: string): Promise<PhaseReport | null>;
+export declare function setPhaseReport(state: PluginStateClient, parentProjectId: string, projectId: string, report: PhaseReport): Promise<void>;
 export declare function getUsage(state: PluginStateClient, parentProjectId: string, projectId: string): Promise<LLMUsage[]>;
 export declare function addUsage(state: PluginStateClient, parentProjectId: string, projectId: string, usage: LLMUsage): Promise<void>;
 //# sourceMappingURL=state.d.ts.map

@@ -1,4 +1,4 @@
-export type ProjectStatus = "draft" | "planning" | "ready" | "building" | "reviewing" | "complete" | "failed";
+export type ProjectStatus = "draft" | "planning" | "ready" | "building" | "reviewing" | "complete" | "failed" | "advancing";
 export type ProjectPriority = "P0" | "P1" | "P2" | "P3";
 export type BuildJobStatus = "pending" | "dispatched" | "building" | "merged" | "failed" | "skipped";
 export type BuildJobType = "code" | "workflow" | "config" | "schema";
@@ -20,6 +20,12 @@ export interface ManagedProject {
     status: ProjectStatus;
     /** Summary generated after PRD decomposition */
     decompositionSummary: string;
+    /** Phase number (1-based, for auto-advance tracking) */
+    phaseNumber: number;
+    /** Enable auto-advance: on pipeline complete → report → next PRD → new project → build */
+    autoAdvance: boolean;
+    /** If this project was auto-advanced from another, the source project ID */
+    sourceProjectId: string | null;
     createdAt: string;
     updatedAt: string;
 }
@@ -58,7 +64,7 @@ export interface PipelineRun {
 }
 /** An event emitted during pipeline execution */
 export interface PipelineEvent {
-    type: "build_started" | "build_dispatched" | "build_merged" | "build_failed" | "review_started" | "review_complete" | "review_tier_started" | "review_tier_complete" | "fix_started" | "fix_applied" | "pipeline_complete" | "pipeline_failed" | "progress";
+    type: "build_started" | "build_dispatched" | "build_merged" | "build_failed" | "review_started" | "review_complete" | "review_tier_started" | "review_tier_complete" | "fix_started" | "fix_applied" | "pipeline_complete" | "pipeline_failed" | "advance_started" | "advance_complete" | "advance_failed" | "progress";
     projectId: string;
     pipelineRunId: string;
     message: string;
@@ -75,6 +81,17 @@ export interface ReviewResult {
     verdict: ReviewVerdict;
     summary: string;
     findings: string[];
+    createdAt: string;
+}
+/** Phase completion report + next-phase PRD */
+export interface PhaseReport {
+    projectId: string;
+    phaseNumber: number;
+    report: string;
+    nextPrd: string;
+    nextPhase: number;
+    /** ID of the auto-created next project (if auto-advance) */
+    nextProjectId: string | null;
     createdAt: string;
 }
 /** LLM usage record for cost tracking */

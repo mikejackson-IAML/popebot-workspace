@@ -27,6 +27,7 @@ const STATUS_COLORS = {
     building: { bg: "#064e3b", text: "#34d399" },
     reviewing: { bg: "#78350f", text: "#fbbf24" },
     complete: { bg: "#14532d", text: "#4ade80" },
+    advancing: { bg: "#4c1d95", text: "#c4b5fd" },
     failed: { bg: "#7f1d1d", text: "#f87171" },
     // job statuses
     pending: { bg: "#374151", text: "#9ca3af" },
@@ -208,9 +209,14 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     const saveRtxKeyAction = usePluginAction("save-rtx-key");
     const startPipelineAction = usePluginAction("start-pipeline");
     const cancelPipelineAction = usePluginAction("cancel-pipeline");
+    const toggleAutoAdvanceAction = usePluginAction("toggle-auto-advance");
+    const advanceProjectAction = usePluginAction("advance-project");
     const { data: apiKeyStatus, refresh: refreshApiKey } = usePluginData("api-key-status", {});
     const { data: rtxKeyStatus, refresh: refreshRtxKey } = usePluginData("rtx-key-status", {});
     const { data: progressData } = usePluginData("progress-log", {
+        parentProjectId, projectId,
+    });
+    const { data: phaseReport } = usePluginData("phase-report", {
         parentProjectId, projectId,
     });
     const { data: pipelineEvents, refresh: refreshPipelineEvents } = usePluginData("pipeline-events", {
@@ -228,6 +234,7 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     const [rtxKeyInput, setRtxKeyInput] = useState("");
     const [pipelineStarting, setPipelineStarting] = useState(false);
     const [cancelling, setCancelling] = useState(false);
+    const [advancing, setAdvancing] = useState(false);
     if (loading)
         return _jsx("div", { style: { padding: "24px", color: C.textMuted }, children: "Loading..." });
     if (error)
@@ -237,7 +244,7 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     const { project, jobs, usage, reviews } = data;
     // Auto-poll: if pipeline is active, schedule next tick to re-fetch data.
     // Starts from Start Build click OR when navigating into an already-building project.
-    const isActive = project.status === "building" || project.status === "reviewing";
+    const isActive = project.status === "building" || project.status === "reviewing" || project.status === "advancing";
     if (isActive && !pendingPoll) {
         scheduleNextTick();
     }
@@ -363,12 +370,38 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
             setCancelling(false);
         }
     };
+    const handleToggleAutoAdvance = async () => {
+        try {
+            setActionError(null);
+            await toggleAutoAdvanceAction({ parentProjectId, projectId });
+            refresh();
+        }
+        catch (err) {
+            setActionError(err.message || "Failed to toggle auto-advance");
+        }
+    };
+    const handleAdvanceProject = async () => {
+        try {
+            setActionError(null);
+            setAdvancing(true);
+            await advanceProjectAction({ parentProjectId, projectId, phaseScope: `Phase ${project.phaseNumber || 1}` });
+            refresh();
+        }
+        catch (err) {
+            setActionError(err.message || "Failed to start phase advancement");
+        }
+        finally {
+            setAdvancing(false);
+        }
+    };
     // Calculate total cost
     const totalCost = usage.reduce((sum, u) => sum + u.estimatedCostUsd, 0);
     const canDecompose = project.prdText && (project.status === "draft" || project.status === "failed");
     const isPlanning = project.status === "planning";
     const canStartPipeline = project.status === "ready" && jobs.length > 0;
     const isPipelineRunning = project.status === "building" || project.status === "reviewing";
+    const isAdvancing = project.status === "advancing";
+    const canAdvance = project.status === "complete" && !phaseReport;
     const { pipeline } = data;
     const myPipelineEvents = pipelineEvents || [];
     return (_jsxs("div", { children: [actionError && _jsx(ErrorBanner, { message: actionError }), showApiKeyConfig && (_jsxs(Card, { style: { marginBottom: "16px", borderColor: C.accent }, children: [_jsx("h4", { style: { margin: "0 0 12px 0", color: C.text, fontSize: "14px" }, children: "Settings" }), _jsxs("div", { style: { marginBottom: "16px" }, children: [_jsxs(Label, { children: ["Anthropic API Key ", apiKeyStatus?.configured && _jsx("span", { style: { color: C.success, marginLeft: "6px" }, children: "configured" })] }), _jsx("p", { style: { color: C.textMuted, fontSize: "12px", margin: "0 0 6px 0" }, children: "Used for PRD decomposition (Sonnet)." }), _jsxs("div", { style: { display: "flex", gap: "8px", alignItems: "center" }, children: [_jsx("input", { type: "password", value: apiKeyInput, onChange: (e) => setApiKeyInput(e.target.value), placeholder: "sk-ant-...", style: {
@@ -397,7 +430,21 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
                                                                 setEditPrd(text);
                                                         };
                                                         reader.readAsText(file);
-                                                    }, style: { display: "none" } })] }), _jsx("span", { style: { color: C.textDim, fontSize: "12px" }, children: "or edit below" })] }), _jsx(TextArea, { value: editPrd, onChange: setEditPrd, placeholder: "PRD text...", rows: 12 })] }), _jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx(Btn, { onClick: handleSave, variant: "primary", children: "Save" }), _jsx(Btn, { onClick: () => setEditing(false), variant: "ghost", children: "Cancel" })] })] }) })) : (_jsxs("div", { style: { display: "grid", gap: "12px", marginBottom: "20px" }, children: [_jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx(Btn, { onClick: startEditing, variant: "default", children: "Edit Project" }), _jsx(Btn, { onClick: handleDelete, variant: "danger", children: "Delete" })] }), project.decompositionSummary && (_jsxs(Card, { children: [_jsx(Label, { children: "Decomposition Summary" }), _jsx("p", { style: { color: C.text, fontSize: "13px", lineHeight: "1.5", margin: 0 }, children: project.decompositionSummary })] })), project.prdText ? (_jsxs(Card, { children: [_jsx(Label, { children: "PRD" }), _jsx("pre", { style: {
+                                                    }, style: { display: "none" } })] }), _jsx("span", { style: { color: C.textDim, fontSize: "12px" }, children: "or edit below" })] }), _jsx(TextArea, { value: editPrd, onChange: setEditPrd, placeholder: "PRD text...", rows: 12 })] }), _jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx(Btn, { onClick: handleSave, variant: "primary", children: "Save" }), _jsx(Btn, { onClick: () => setEditing(false), variant: "ghost", children: "Cancel" })] })] }) })) : (_jsxs("div", { style: { display: "grid", gap: "12px", marginBottom: "20px" }, children: [_jsxs("div", { style: { display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }, children: [_jsx(Btn, { onClick: startEditing, variant: "default", children: "Edit Project" }), _jsx(Btn, { onClick: handleDelete, variant: "danger", children: "Delete" }), canAdvance && (_jsx(Btn, { variant: "primary", onClick: handleAdvanceProject, disabled: advancing, style: { backgroundColor: "#7c3aed" }, children: advancing ? "Advancing..." : `Advance to Phase ${(project.phaseNumber || 1) + 1}` })), _jsxs("div", { onClick: handleToggleAutoAdvance, style: {
+                                    display: "flex", alignItems: "center", gap: "6px", cursor: "pointer",
+                                    padding: "6px 12px", borderRadius: "6px",
+                                    backgroundColor: project.autoAdvance ? "#4c1d95" : "#374151",
+                                    border: `1px solid ${project.autoAdvance ? "#7c3aed" : C.border}`,
+                                }, children: [_jsx("div", { style: {
+                                            width: "32px", height: "16px", borderRadius: "8px",
+                                            backgroundColor: project.autoAdvance ? "#7c3aed" : "#4b5563",
+                                            position: "relative", transition: "background-color 0.2s",
+                                        }, children: _jsx("div", { style: {
+                                                width: "12px", height: "12px", borderRadius: "50%",
+                                                backgroundColor: "#fff", position: "absolute", top: "2px",
+                                                left: project.autoAdvance ? "18px" : "2px",
+                                                transition: "left 0.2s",
+                                            } }) }), _jsx("span", { style: { fontSize: "12px", color: project.autoAdvance ? "#c4b5fd" : C.textMuted }, children: "Auto-advance" })] }), project.phaseNumber > 0 && (_jsxs("span", { style: { fontSize: "12px", color: C.textDim }, children: ["Phase ", project.phaseNumber] })), project.sourceProjectId && (_jsxs("span", { style: { fontSize: "11px", color: C.textDim }, children: ["(from ", project.sourceProjectId.slice(0, 8), ")"] }))] }), project.decompositionSummary && (_jsxs(Card, { children: [_jsx(Label, { children: "Decomposition Summary" }), _jsx("p", { style: { color: C.text, fontSize: "13px", lineHeight: "1.5", margin: 0 }, children: project.decompositionSummary })] })), project.prdText ? (_jsxs(Card, { children: [_jsx(Label, { children: "PRD" }), _jsx("pre", { style: {
                                     color: C.text, fontSize: "13px", lineHeight: "1.5",
                                     whiteSpace: "pre-wrap", wordBreak: "break-word",
                                     maxHeight: "300px", overflow: "auto", margin: 0,
@@ -407,7 +454,17 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
                                                     color: evt.type === "pipeline_complete" ? C.success
                                                         : evt.type === "pipeline_failed" ? "#f87171"
                                                             : C.text,
-                                                }, children: evt.message })] }, i))), isPipelineRunning && (_jsx("div", { style: { fontSize: "12px", color: C.accent, padding: "4px 0" }, children: "Pipeline running... (updates every 10s)" }))] })] })), !pipeline && !canStartPipeline && jobs.length === 0 && (_jsx(Card, { style: { border: "1px dashed #475569", textAlign: "center", padding: "24px" }, children: _jsx("span", { style: { color: C.textDim }, children: "Decompose a PRD into build jobs first, then start the pipeline." }) })), !pipeline && canStartPipeline && (_jsx(Card, { style: { border: "1px dashed #475569", textAlign: "center", padding: "24px" }, children: _jsxs("span", { style: { color: C.textDim }, children: [jobs.length, " jobs ready. Click \"Start Build\" to launch the pipeline on RTX."] }) }))] }), _jsxs("div", { style: { marginBottom: "16px" }, children: [_jsxs("h3", { style: { margin: "0 0 12px 0", color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }, children: ["Review Tiers ", reviews.length > 0 && `(${reviews.length} results)`] }), reviews.length === 0 ? (_jsx(Card, { style: { border: "1px dashed #475569", textAlign: "center", padding: "24px" }, children: _jsxs("span", { style: { color: C.textDim }, children: ["Review results will appear here during pipeline execution.", isPipelineRunning && " Pipeline is running..."] }) })) : (_jsx("div", { style: { display: "flex", flexDirection: "column", gap: "6px" }, children: Array.from(new Set(reviews.map(r => r.round))).sort().map(round => {
+                                                }, children: evt.message })] }, i))), isPipelineRunning && (_jsx("div", { style: { fontSize: "12px", color: C.accent, padding: "4px 0" }, children: "Pipeline running... (updates every 10s)" }))] })] })), !pipeline && !canStartPipeline && jobs.length === 0 && (_jsx(Card, { style: { border: "1px dashed #475569", textAlign: "center", padding: "24px" }, children: _jsx("span", { style: { color: C.textDim }, children: "Decompose a PRD into build jobs first, then start the pipeline." }) })), !pipeline && canStartPipeline && (_jsx(Card, { style: { border: "1px dashed #475569", textAlign: "center", padding: "24px" }, children: _jsxs("span", { style: { color: C.textDim }, children: [jobs.length, " jobs ready. Click \"Start Build\" to launch the pipeline on RTX."] }) }))] }), isAdvancing && (_jsx(Card, { style: { marginBottom: "16px", borderColor: "#7c3aed" }, children: _jsxs("div", { style: { display: "flex", alignItems: "center", gap: "8px" }, children: [_jsxs("span", { style: { color: "#c4b5fd", fontSize: "14px", fontWeight: 600 }, children: ["Advancing to Phase ", (project.phaseNumber || 1) + 1, "..."] }), _jsx("span", { style: { color: C.textDim, fontSize: "12px" }, children: "Generating report and next-phase PRD on RTX" })] }) })), phaseReport && (_jsxs("div", { style: { marginBottom: "16px" }, children: [_jsxs("h3", { style: { margin: "0 0 12px 0", color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }, children: ["Phase ", phaseReport.phaseNumber, " Report"] }), _jsxs(Card, { children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }, children: [_jsxs("span", { style: { color: "#c4b5fd", fontSize: "13px", fontWeight: 600 }, children: ["Phase ", phaseReport.phaseNumber, " \u2192 ", phaseReport.nextPhase] }), _jsx("span", { style: { fontSize: "11px", color: C.textDim }, children: new Date(phaseReport.createdAt).toLocaleString() })] }), phaseReport.report && (_jsxs("details", { style: { marginBottom: "8px" }, children: [_jsxs("summary", { style: { cursor: "pointer", color: C.textMuted, fontSize: "12px", marginBottom: "4px" }, children: ["Completion Report (", phaseReport.report.length, " chars)"] }), _jsx("pre", { style: {
+                                            color: C.text, fontSize: "11px", lineHeight: "1.4",
+                                            whiteSpace: "pre-wrap", wordBreak: "break-word",
+                                            maxHeight: "300px", overflow: "auto", margin: "4px 0",
+                                            padding: "8px", backgroundColor: "#0f172a", borderRadius: "4px",
+                                        }, children: phaseReport.report })] })), phaseReport.nextPrd && (_jsxs("details", { children: [_jsxs("summary", { style: { cursor: "pointer", color: C.textMuted, fontSize: "12px", marginBottom: "4px" }, children: ["Next Phase PRD (", phaseReport.nextPrd.length, " chars)"] }), _jsx("pre", { style: {
+                                            color: C.text, fontSize: "11px", lineHeight: "1.4",
+                                            whiteSpace: "pre-wrap", wordBreak: "break-word",
+                                            maxHeight: "300px", overflow: "auto", margin: "4px 0",
+                                            padding: "8px", backgroundColor: "#0f172a", borderRadius: "4px",
+                                        }, children: phaseReport.nextPrd })] })), phaseReport.nextProjectId && (_jsxs("div", { style: { marginTop: "8px", fontSize: "12px", color: "#c4b5fd" }, children: ["Next project: ", phaseReport.nextProjectId.slice(0, 8), "... (go back to project list to open it)"] }))] })] })), _jsxs("div", { style: { marginBottom: "16px" }, children: [_jsxs("h3", { style: { margin: "0 0 12px 0", color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }, children: ["Review Tiers ", reviews.length > 0 && `(${reviews.length} results)`] }), reviews.length === 0 ? (_jsx(Card, { style: { border: "1px dashed #475569", textAlign: "center", padding: "24px" }, children: _jsxs("span", { style: { color: C.textDim }, children: ["Review results will appear here during pipeline execution.", isPipelineRunning && " Pipeline is running..."] }) })) : (_jsx("div", { style: { display: "flex", flexDirection: "column", gap: "6px" }, children: Array.from(new Set(reviews.map(r => r.round))).sort().map(round => {
                             const roundReviews = reviews.filter(r => r.round === round);
                             // Order: haiku, deepseek, codex
                             const tierOrder = ["haiku", "deepseek", "codex"];

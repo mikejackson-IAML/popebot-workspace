@@ -13,7 +13,7 @@ import {
 // Types (mirror worker/types.ts for UI)
 // =============================================================================
 
-type ProjectStatus = "draft" | "planning" | "ready" | "building" | "reviewing" | "complete" | "failed";
+type ProjectStatus = "draft" | "planning" | "ready" | "building" | "reviewing" | "complete" | "failed" | "advancing";
 type ProjectPriority = "P0" | "P1" | "P2" | "P3";
 
 interface ManagedProject {
@@ -24,8 +24,21 @@ interface ManagedProject {
   priority: ProjectPriority;
   status: ProjectStatus;
   decompositionSummary: string;
+  phaseNumber: number;
+  autoAdvance: boolean;
+  sourceProjectId: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+interface PhaseReport {
+  projectId: string;
+  phaseNumber: number;
+  report: string;
+  nextPrd: string;
+  nextPhase: number;
+  nextProjectId: string | null;
+  createdAt: string;
 }
 
 type BuildJobType = "code" | "workflow" | "config" | "schema";
@@ -134,6 +147,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   building: { bg: "#064e3b", text: "#34d399" },
   reviewing: { bg: "#78350f", text: "#fbbf24" },
   complete: { bg: "#14532d", text: "#4ade80" },
+  advancing: { bg: "#4c1d95", text: "#c4b5fd" },
   failed: { bg: "#7f1d1d", text: "#f87171" },
   // job statuses
   pending: { bg: "#374151", text: "#9ca3af" },
@@ -510,10 +524,15 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const saveRtxKeyAction = usePluginAction("save-rtx-key");
   const startPipelineAction = usePluginAction("start-pipeline");
   const cancelPipelineAction = usePluginAction("cancel-pipeline");
+  const toggleAutoAdvanceAction = usePluginAction("toggle-auto-advance");
+  const advanceProjectAction = usePluginAction("advance-project");
 
   const { data: apiKeyStatus, refresh: refreshApiKey } = usePluginData<{ configured: boolean }>("api-key-status", {});
   const { data: rtxKeyStatus, refresh: refreshRtxKey } = usePluginData<{ configured: boolean }>("rtx-key-status", {});
   const { data: progressData } = usePluginData<ProgressMessage[]>("progress-log", {
+    parentProjectId, projectId,
+  });
+  const { data: phaseReport } = usePluginData<PhaseReport | null>("phase-report", {
     parentProjectId, projectId,
   });
   const { data: pipelineEvents, refresh: refreshPipelineEvents } = usePluginData<PipelineEvent[]>("pipeline-events", {
@@ -532,6 +551,7 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const [rtxKeyInput, setRtxKeyInput] = useState("");
   const [pipelineStarting, setPipelineStarting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [advancing, setAdvancing] = useState(false);
 
   if (loading) return <div style={{ padding: "24px", color: C.textMuted }}>Loading...</div>;
   if (error) return <ErrorBanner message={error.message} />;
@@ -541,7 +561,7 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
 
   // Auto-poll: if pipeline is active, schedule next tick to re-fetch data.
   // Starts from Start Build click OR when navigating into an already-building project.
-  const isActive = project.status === "building" || project.status === "reviewing";
+  const isActive = project.status === "building" || project.status === "reviewing" || project.status === "advancing";
   if (isActive && !pendingPoll) {
     scheduleNextTick();
   }
@@ -667,6 +687,29 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
     }
   };
 
+  const handleToggleAutoAdvance = async () => {
+    try {
+      setActionError(null);
+      await toggleAutoAdvanceAction({ parentProjectId, projectId });
+      refresh();
+    } catch (err: any) {
+      setActionError(err.message || "Failed to toggle auto-advance");
+    }
+  };
+
+  const handleAdvanceProject = async () => {
+    try {
+      setActionError(null);
+      setAdvancing(true);
+      await advanceProjectAction({ parentProjectId, projectId, phaseScope: `Phase ${project.phaseNumber || 1}` });
+      refresh();
+    } catch (err: any) {
+      setActionError(err.message || "Failed to start phase advancement");
+    } finally {
+      setAdvancing(false);
+    }
+  };
+
   // Calculate total cost
   const totalCost = (usage as LLMUsageRecord[]).reduce((sum, u) => sum + u.estimatedCostUsd, 0);
 
@@ -674,6 +717,8 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const isPlanning = project.status === "planning";
   const canStartPipeline = project.status === "ready" && jobs.length > 0;
   const isPipelineRunning = project.status === "building" || project.status === "reviewing";
+  const isAdvancing = project.status === "advancing";
+  const canAdvance = project.status === "complete" && !phaseReport;
   const { pipeline } = data;
   const myPipelineEvents = pipelineEvents || [];
 
@@ -800,9 +845,48 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
         </Card>
       ) : (
         <div style={{ display: "grid", gap: "12px", marginBottom: "20px" }}>
-          <div style={{ display: "flex", gap: "8px" }}>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
             <Btn onClick={startEditing} variant="default">Edit Project</Btn>
             <Btn onClick={handleDelete} variant="danger">Delete</Btn>
+            {canAdvance && (
+              <Btn variant="primary" onClick={handleAdvanceProject} disabled={advancing}
+                style={{ backgroundColor: "#7c3aed" }}>
+                {advancing ? "Advancing..." : `Advance to Phase ${(project.phaseNumber || 1) + 1}`}
+              </Btn>
+            )}
+            <div
+              onClick={handleToggleAutoAdvance}
+              style={{
+                display: "flex", alignItems: "center", gap: "6px", cursor: "pointer",
+                padding: "6px 12px", borderRadius: "6px",
+                backgroundColor: project.autoAdvance ? "#4c1d95" : "#374151",
+                border: `1px solid ${project.autoAdvance ? "#7c3aed" : C.border}`,
+              }}
+            >
+              <div style={{
+                width: "32px", height: "16px", borderRadius: "8px",
+                backgroundColor: project.autoAdvance ? "#7c3aed" : "#4b5563",
+                position: "relative", transition: "background-color 0.2s",
+              }}>
+                <div style={{
+                  width: "12px", height: "12px", borderRadius: "50%",
+                  backgroundColor: "#fff", position: "absolute", top: "2px",
+                  left: project.autoAdvance ? "18px" : "2px",
+                  transition: "left 0.2s",
+                }} />
+              </div>
+              <span style={{ fontSize: "12px", color: project.autoAdvance ? "#c4b5fd" : C.textMuted }}>
+                Auto-advance
+              </span>
+            </div>
+            {project.phaseNumber > 0 && (
+              <span style={{ fontSize: "12px", color: C.textDim }}>Phase {project.phaseNumber}</span>
+            )}
+            {project.sourceProjectId && (
+              <span style={{ fontSize: "11px", color: C.textDim }}>
+                (from {project.sourceProjectId.slice(0, 8)})
+              </span>
+            )}
           </div>
 
           {/* Decomposition Summary */}
@@ -1001,6 +1085,74 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
           </Card>
         )}
       </div>
+
+      {/* Advancing State */}
+      {isAdvancing && (
+        <Card style={{ marginBottom: "16px", borderColor: "#7c3aed" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ color: "#c4b5fd", fontSize: "14px", fontWeight: 600 }}>
+              Advancing to Phase {(project.phaseNumber || 1) + 1}...
+            </span>
+            <span style={{ color: C.textDim, fontSize: "12px" }}>
+              Generating report and next-phase PRD on RTX
+            </span>
+          </div>
+        </Card>
+      )}
+
+      {/* Phase Report */}
+      {phaseReport && (
+        <div style={{ marginBottom: "16px" }}>
+          <h3 style={{ margin: "0 0 12px 0", color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Phase {phaseReport.phaseNumber} Report
+          </h3>
+          <Card>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <span style={{ color: "#c4b5fd", fontSize: "13px", fontWeight: 600 }}>
+                Phase {phaseReport.phaseNumber} → {phaseReport.nextPhase}
+              </span>
+              <span style={{ fontSize: "11px", color: C.textDim }}>
+                {new Date(phaseReport.createdAt).toLocaleString()}
+              </span>
+            </div>
+            {phaseReport.report && (
+              <details style={{ marginBottom: "8px" }}>
+                <summary style={{ cursor: "pointer", color: C.textMuted, fontSize: "12px", marginBottom: "4px" }}>
+                  Completion Report ({phaseReport.report.length} chars)
+                </summary>
+                <pre style={{
+                  color: C.text, fontSize: "11px", lineHeight: "1.4",
+                  whiteSpace: "pre-wrap", wordBreak: "break-word",
+                  maxHeight: "300px", overflow: "auto", margin: "4px 0",
+                  padding: "8px", backgroundColor: "#0f172a", borderRadius: "4px",
+                }}>
+                  {phaseReport.report}
+                </pre>
+              </details>
+            )}
+            {phaseReport.nextPrd && (
+              <details>
+                <summary style={{ cursor: "pointer", color: C.textMuted, fontSize: "12px", marginBottom: "4px" }}>
+                  Next Phase PRD ({phaseReport.nextPrd.length} chars)
+                </summary>
+                <pre style={{
+                  color: C.text, fontSize: "11px", lineHeight: "1.4",
+                  whiteSpace: "pre-wrap", wordBreak: "break-word",
+                  maxHeight: "300px", overflow: "auto", margin: "4px 0",
+                  padding: "8px", backgroundColor: "#0f172a", borderRadius: "4px",
+                }}>
+                  {phaseReport.nextPrd}
+                </pre>
+              </details>
+            )}
+            {phaseReport.nextProjectId && (
+              <div style={{ marginTop: "8px", fontSize: "12px", color: "#c4b5fd" }}>
+                Next project: {phaseReport.nextProjectId.slice(0, 8)}... (go back to project list to open it)
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
 
       {/* Review Tiers */}
       <div style={{ marginBottom: "16px" }}>

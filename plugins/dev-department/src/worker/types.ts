@@ -3,7 +3,7 @@
 // =============================================================================
 
 // -- Project status lifecycle --
-export type ProjectStatus = "draft" | "planning" | "ready" | "building" | "reviewing" | "complete" | "failed";
+export type ProjectStatus = "draft" | "planning" | "ready" | "building" | "reviewing" | "complete" | "failed" | "advancing";
 export type ProjectPriority = "P0" | "P1" | "P2" | "P3";
 
 // -- Build job status --
@@ -48,6 +48,12 @@ export interface ManagedProject {
   status: ProjectStatus;
   /** Summary generated after PRD decomposition */
   decompositionSummary: string;
+  /** Phase number (1-based, for auto-advance tracking) */
+  phaseNumber: number;
+  /** Enable auto-advance: on pipeline complete → report → next PRD → new project → build */
+  autoAdvance: boolean;
+  /** If this project was auto-advanced from another, the source project ID */
+  sourceProjectId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -102,6 +108,9 @@ export interface PipelineEvent {
     | "fix_applied"
     | "pipeline_complete"
     | "pipeline_failed"
+    | "advance_started"
+    | "advance_complete"
+    | "advance_failed"
     | "progress";
   projectId: string;
   pipelineRunId: string;
@@ -120,6 +129,18 @@ export interface ReviewResult {
   verdict: ReviewVerdict;
   summary: string;
   findings: string[];
+  createdAt: string;
+}
+
+/** Phase completion report + next-phase PRD */
+export interface PhaseReport {
+  projectId: string;
+  phaseNumber: number;
+  report: string;
+  nextPrd: string;
+  nextPhase: number;
+  /** ID of the auto-created next project (if auto-advance) */
+  nextProjectId: string | null;
   createdAt: string;
 }
 

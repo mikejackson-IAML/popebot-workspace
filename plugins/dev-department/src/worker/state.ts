@@ -9,6 +9,7 @@ import type {
   PipelineEvent,
   ReviewResult,
   LLMUsage,
+  PhaseReport,
 } from "./types.js";
 
 const NS = "automation";
@@ -215,6 +216,27 @@ export async function addReview(
   const reviews = await getReviews(state, parentProjectId, projectId);
   reviews.push(review);
   await state.set(key(parentProjectId, `reviews:${projectId}`), reviews);
+}
+
+// =============================================================================
+// Phase Reports
+// =============================================================================
+
+export async function getPhaseReport(
+  state: PluginStateClient,
+  parentProjectId: string,
+  projectId: string
+): Promise<PhaseReport | null> {
+  return (await state.get(key(parentProjectId, `phase-report:${projectId}`))) as PhaseReport | null;
+}
+
+export async function setPhaseReport(
+  state: PluginStateClient,
+  parentProjectId: string,
+  projectId: string,
+  report: PhaseReport
+): Promise<void> {
+  await state.set(key(parentProjectId, `phase-report:${projectId}`), report);
 }
 
 // =============================================================================
