@@ -1,0 +1,4 @@
+{
+  "title": "Define TypeScript interfaces for core trace objects with tenant isolation",
+  "job": "Define TypeScript interfaces and types for core trace objects including Trace, RetrievalStrategy, PromptTemplate, ValidationRecord, and EvalCase. Include proper tenant isolation fields and timestamp tracking."
+}
