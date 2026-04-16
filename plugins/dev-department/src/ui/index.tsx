@@ -7,13 +7,14 @@ import {
   usePluginData,
   usePluginAction,
   useHostContext,
+  usePluginToast,
 } from "@paperclipai/plugin-sdk/ui";
 
 // =============================================================================
 // Types (mirror worker/types.ts for UI)
 // =============================================================================
 
-type ProjectStatus = "draft" | "planning" | "ready" | "building" | "reviewing" | "complete" | "failed" | "advancing";
+type ProjectStatus = "draft" | "planning" | "ready" | "building" | "reviewing" | "needs-review" | "complete" | "failed" | "advancing";
 type ProjectPriority = "P0" | "P1" | "P2" | "P3";
 
 interface ManagedProject {
@@ -146,6 +147,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   ready: { bg: "#3b0764", text: "#c084fc" },
   building: { bg: "#064e3b", text: "#34d399" },
   reviewing: { bg: "#78350f", text: "#fbbf24" },
+  "needs-review": { bg: "#78350f", text: "#fbbf24" },
   complete: { bg: "#14532d", text: "#4ade80" },
   advancing: { bg: "#4c1d95", text: "#c4b5fd" },
   failed: { bg: "#7f1d1d", text: "#f87171" },
@@ -526,6 +528,9 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const cancelPipelineAction = usePluginAction("cancel-pipeline");
   const toggleAutoAdvanceAction = usePluginAction("toggle-auto-advance");
   const advanceProjectAction = usePluginAction("advance-project");
+  const approvePhaseAction = usePluginAction("approve-phase");
+  const rejectPhaseAction = usePluginAction("reject-phase");
+  const toast = usePluginToast();
 
   const { data: apiKeyStatus, refresh: refreshApiKey } = usePluginData<{ configured: boolean }>("api-key-status", {});
   const { data: rtxKeyStatus, refresh: refreshRtxKey } = usePluginData<{ configured: boolean }>("rtx-key-status", {});
@@ -552,6 +557,8 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const [pipelineStarting, setPipelineStarting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [advancing, setAdvancing] = useState(false);
+  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
 
   if (loading) return <div style={{ padding: "24px", color: C.textMuted }}>Loading...</div>;
   if (error) return <ErrorBanner message={error.message} />;
@@ -562,6 +569,7 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   // Auto-poll: if pipeline is active, schedule next tick to re-fetch data.
   // Starts from Start Build click OR when navigating into an already-building project.
   const isActive = project.status === "building" || project.status === "reviewing" || project.status === "advancing";
+
   if (isActive && !pendingPoll) {
     scheduleNextTick();
   }
@@ -710,6 +718,40 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
     }
   };
 
+  const handleApprovePhase = async () => {
+    try {
+      setActionError(null);
+      await approvePhaseAction({ parentProjectId, projectId });
+      toast({
+        title: "Phase approved",
+        body: project.autoAdvance ? "Auto-advancing to next phase..." : "Phase marked as complete.",
+        tone: "success",
+        ttlMs: 5000,
+      });
+      refresh();
+    } catch (err: any) {
+      setActionError(err.message || "Failed to approve");
+    }
+  };
+
+  const handleRejectPhase = async () => {
+    try {
+      setActionError(null);
+      await rejectPhaseAction({ parentProjectId, projectId, reason: rejectReason || "Rejected by reviewer" });
+      setShowRejectForm(false);
+      setRejectReason("");
+      toast({
+        title: "Phase rejected",
+        body: rejectReason || "Rejected by reviewer",
+        tone: "error",
+        ttlMs: 5000,
+      });
+      refresh();
+    } catch (err: any) {
+      setActionError(err.message || "Failed to reject");
+    }
+  };
+
   // Calculate total cost
   const totalCost = (usage as LLMUsageRecord[]).reduce((sum, u) => sum + u.estimatedCostUsd, 0);
 
@@ -718,13 +760,157 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const canStartPipeline = project.status === "ready" && jobs.length > 0;
   const isPipelineRunning = project.status === "building" || project.status === "reviewing";
   const isAdvancing = project.status === "advancing";
+  const needsReview = project.status === "needs-review";
   const canAdvance = project.status === "complete" && !phaseReport;
+
+  // Toast when project needs review
+  if (needsReview) {
+    toast({
+      dedupeKey: `review-${projectId}`,
+      title: "Review needed",
+      body: `"${project.name}" pipeline complete — approve or reject.`,
+      tone: "warn",
+      ttlMs: 10000,
+    });
+  }
   const { pipeline } = data;
   const myPipelineEvents = pipelineEvents || [];
 
   return (
     <div>
       {actionError && <ErrorBanner message={actionError} />}
+
+      {/* ── REVIEW GATE ── */}
+      {needsReview && (
+        <Card style={{
+          marginBottom: "16px",
+          borderColor: C.warning,
+          border: `2px solid ${C.warning}`,
+          background: "linear-gradient(135deg, #1e293b 0%, #1a1a2e 100%)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+            <span style={{ fontSize: "20px" }}>&#9888;</span>
+            <h3 style={{ margin: 0, color: C.warning, fontSize: "16px" }}>Review Required</h3>
+            <Badge label={`Phase ${project.phaseNumber || 1}`} colors={{
+              [`Phase ${project.phaseNumber || 1}`]: { bg: "#4c1d95", text: "#c4b5fd" },
+            }} />
+          </div>
+
+          <p style={{ color: C.text, fontSize: "13px", margin: "0 0 12px 0" }}>
+            Pipeline complete. Review the results below before approving or rejecting.
+          </p>
+
+          {/* Review summary */}
+          <div style={{
+            display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "12px",
+          }}>
+            <div style={{
+              padding: "10px", backgroundColor: "#0f172a", borderRadius: "6px", textAlign: "center",
+            }}>
+              <div style={{ fontSize: "18px", fontWeight: 700, color: C.text }}>{jobs.length}</div>
+              <div style={{ fontSize: "11px", color: C.textDim }}>Build Jobs</div>
+            </div>
+            <div style={{
+              padding: "10px", backgroundColor: "#0f172a", borderRadius: "6px", textAlign: "center",
+            }}>
+              <div style={{ fontSize: "18px", fontWeight: 700, color: C.text }}>{reviews.length}</div>
+              <div style={{ fontSize: "11px", color: C.textDim }}>Review Results</div>
+            </div>
+            <div style={{
+              padding: "10px", backgroundColor: "#0f172a", borderRadius: "6px", textAlign: "center",
+            }}>
+              <div style={{ fontSize: "18px", fontWeight: 700, color: C.success }}>${totalCost.toFixed(4)}</div>
+              <div style={{ fontSize: "11px", color: C.textDim }}>Total Cost</div>
+            </div>
+          </div>
+
+          {/* Tier verdict summary */}
+          {reviews.length > 0 && (
+            <div style={{ display: "flex", gap: "8px", marginBottom: "12px", flexWrap: "wrap" }}>
+              {(["haiku", "deepseek", "codex"] as const).map(tier => {
+                const tierReviews = reviews.filter(r => r.tier === tier);
+                const latest = tierReviews[tierReviews.length - 1];
+                if (!latest) return null;
+                const tc = TIER_COLORS[tier] || TIER_COLORS.haiku;
+                const vc = VERDICT_COLORS[latest.verdict] || VERDICT_COLORS.unknown;
+                return (
+                  <div key={tier} style={{
+                    display: "flex", alignItems: "center", gap: "6px",
+                    padding: "6px 10px", backgroundColor: "#0f172a",
+                    borderRadius: "6px", border: `1px solid ${C.border}`,
+                  }}>
+                    <span style={{
+                      padding: "2px 8px", borderRadius: "10px", fontSize: "10px",
+                      fontWeight: 600, backgroundColor: tc.bg, color: tc.text,
+                    }}>
+                      {tc.label}
+                    </span>
+                    <span style={{
+                      padding: "2px 8px", borderRadius: "10px", fontSize: "10px",
+                      fontWeight: 600, backgroundColor: vc.bg, color: vc.text,
+                      textTransform: "uppercase",
+                    }}>
+                      {latest.verdict}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {pipeline?.completedAt && pipeline?.startedAt && (
+            <div style={{ fontSize: "12px", color: C.textDim, marginBottom: "12px" }}>
+              Pipeline duration: {(() => {
+                const ms = new Date(pipeline.completedAt).getTime() - new Date(pipeline.startedAt).getTime();
+                const mins = Math.floor(ms / 60000);
+                const secs = Math.floor((ms % 60000) / 1000);
+                return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+              })()}
+            </div>
+          )}
+
+          {project.autoAdvance && (
+            <div style={{
+              fontSize: "12px", color: "#c4b5fd", marginBottom: "12px",
+              padding: "6px 10px", backgroundColor: "#4c1d95", borderRadius: "6px",
+            }}>
+              Auto-advance is ON — approving will generate Phase {(project.phaseNumber || 1) + 1} report and PRD.
+            </div>
+          )}
+
+          {/* Approve / Reject buttons */}
+          {!showRejectForm ? (
+            <div style={{ display: "flex", gap: "8px" }}>
+              <Btn variant="primary" onClick={handleApprovePhase}
+                style={{ backgroundColor: "#059669", flex: 1, padding: "12px", fontSize: "14px", fontWeight: 600 }}>
+                Approve Phase {project.phaseNumber || 1}
+              </Btn>
+              <Btn variant="danger" onClick={() => setShowRejectForm(true)}
+                style={{ flex: 1, padding: "12px", fontSize: "14px", fontWeight: 600 }}>
+                Reject
+              </Btn>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: "8px" }}>
+              <Label>Rejection reason</Label>
+              <TextArea
+                value={rejectReason}
+                onChange={setRejectReason}
+                placeholder="What needs to change before this phase can be approved?"
+                rows={3}
+              />
+              <div style={{ display: "flex", gap: "8px" }}>
+                <Btn variant="danger" onClick={handleRejectPhase} style={{ flex: 1 }}>
+                  Confirm Reject
+                </Btn>
+                <Btn variant="ghost" onClick={() => { setShowRejectForm(false); setRejectReason(""); }}>
+                  Cancel
+                </Btn>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Settings Panel — API Keys */}
       {showApiKeyConfig && (
@@ -1358,6 +1544,12 @@ function ProjectsView() {
 // =============================================================================
 
 export function AutomationSidebar({ context }: PluginProjectSidebarItemProps) {
+  const { projectId: parentProjectId } = useHostContext();
+  const { data: reviewData } = usePluginData<{ count: number }>("review-count", {
+    parentProjectId: parentProjectId || "",
+  });
+  const reviewCount = reviewData?.count || 0;
+
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: "10px",
@@ -1371,6 +1563,17 @@ export function AutomationSidebar({ context }: PluginProjectSidebarItemProps) {
         A
       </span>
       <span>Automation</span>
+      {reviewCount > 0 && (
+        <span style={{
+          marginLeft: "auto",
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          minWidth: "20px", height: "20px", borderRadius: "10px",
+          backgroundColor: C.warning, color: "#000",
+          fontSize: "11px", fontWeight: 700, padding: "0 6px",
+        }}>
+          {reviewCount}
+        </span>
+      )}
     </div>
   );
 }

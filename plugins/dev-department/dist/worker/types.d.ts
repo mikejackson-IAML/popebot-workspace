@@ -1,4 +1,4 @@
-export type ProjectStatus = "draft" | "planning" | "ready" | "building" | "reviewing" | "complete" | "failed" | "advancing";
+export type ProjectStatus = "draft" | "planning" | "ready" | "building" | "reviewing" | "needs-review" | "complete" | "failed" | "advancing";
 export type ProjectPriority = "P0" | "P1" | "P2" | "P3";
 export type BuildJobStatus = "pending" | "dispatched" | "building" | "merged" | "failed" | "skipped";
 export type BuildJobType = "code" | "workflow" | "config" | "schema";

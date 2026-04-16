@@ -136,6 +136,14 @@ const plugin = definePlugin({
       return store.getPipelineEvents(ctx.state, parentProjectId, projectId);
     });
 
+    ctx.data.register("review-count", async (params) => {
+      const parentProjectId = params.parentProjectId as string;
+      if (!parentProjectId) return { count: 0 };
+      const projects = await store.listProjects(ctx.state, parentProjectId);
+      const count = projects.filter(p => p.status === "needs-review").length;
+      return { count };
+    });
+
     ctx.data.register("phase-report", async (params) => {
       const parentProjectId = params.parentProjectId as string;
       const projectId = params.projectId as string;
@@ -407,120 +415,32 @@ const plugin = definePlugin({
 
               // Update project status
               if (statusData.status === "complete") {
-                await store.updateProject(ctx.state, parentProjectId, projectId, { status: "complete" });
+                // Pipeline done — hold for human review
+                await store.updateProject(ctx.state, parentProjectId, projectId, { status: "needs-review" });
                 done = true;
 
-                // Check for auto-advance
-                const completedProject = await store.getProject(ctx.state, parentProjectId, projectId);
-                if (completedProject?.autoAdvance) {
-                  ctx.logger.info("project-automation: auto-advance triggered", { projectId });
-                  await store.updateProject(ctx.state, parentProjectId, projectId, { status: "advancing" });
-                  await store.addPipelineEvent(ctx.state, parentProjectId, projectId, {
-                    type: "advance_started",
-                    projectId,
-                    pipelineRunId: pipelineRun.id,
-                    message: `Auto-advance: generating Phase ${(completedProject.phaseNumber || 1) + 1} report and PRD...`,
-                    timestamp: new Date().toISOString(),
+                await store.addPipelineEvent(ctx.state, parentProjectId, projectId, {
+                  type: "pipeline_complete",
+                  projectId,
+                  pipelineRunId: pipelineRun.id,
+                  message: "Pipeline complete — awaiting human review.",
+                  timestamp: new Date().toISOString(),
+                });
+
+                // Write to Paperclip activity log
+                try {
+                  await ctx.activity.log({
+                    companyId: parentProjectId,
+                    message: `Pipeline complete for "${project.name}" (Phase ${project.phaseNumber || 1}) — review needed`,
+                    entityType: "automation-project",
+                    entityId: projectId,
+                    metadata: { status: "needs-review", phaseNumber: project.phaseNumber || 1 },
                   });
-
-                  // Start advance on RTX orchestrator
-                  try {
-                    const advStartRes = await ctx.http.fetch(`${RTX_ORCHESTRATOR_URL}/advance/start`, {
-                      method: "POST",
-                      headers,
-                      body: JSON.stringify({
-                        currentPhase: completedProject.phaseNumber || 1,
-                        pluginDir: "plugins/dev-department",
-                        phaseScope: `Phase ${completedProject.phaseNumber || 1}`,
-                      }),
-                    });
-
-                    if (advStartRes.ok) {
-                      const advData = await advStartRes.json() as { advanceId: string };
-                      // Poll advance status
-                      let advDone = false;
-                      while (!advDone) {
-                        await new Promise(r => setTimeout(r, 15_000));
-                        try {
-                          const advStatusRes = await ctx.http.fetch(
-                            `${RTX_ORCHESTRATOR_URL}/advance/${advData.advanceId}/status`,
-                            { method: "GET", headers },
-                          );
-                          if (!advStatusRes.ok) continue;
-                          const advStatus = await advStatusRes.json() as {
-                            status: string; report: string; nextPrd: string; nextPhase: number;
-                          };
-
-                          if (advStatus.status === "complete") {
-                            const phaseReport: PhaseReport = {
-                              projectId,
-                              phaseNumber: completedProject.phaseNumber || 1,
-                              report: advStatus.report,
-                              nextPrd: advStatus.nextPrd,
-                              nextPhase: advStatus.nextPhase,
-                              nextProjectId: null,
-                              createdAt: new Date().toISOString(),
-                            };
-                            await store.setPhaseReport(ctx.state, parentProjectId, projectId, phaseReport);
-
-                            await store.addPipelineEvent(ctx.state, parentProjectId, projectId, {
-                              type: "advance_complete",
-                              projectId,
-                              pipelineRunId: pipelineRun.id,
-                              message: `Phase report ready. Next PRD generated for Phase ${advStatus.nextPhase}.`,
-                              timestamp: new Date().toISOString(),
-                            });
-
-                            // Create next project if we have a PRD
-                            if (advStatus.nextPrd) {
-                              const nextProject = await store.createProject(ctx.state, parentProjectId, {
-                                parentProjectId,
-                                name: `${completedProject.name.replace(/ — Phase \d+$/, "")} — Phase ${advStatus.nextPhase}`,
-                                prdText: advStatus.nextPrd,
-                                priority: completedProject.priority,
-                                status: "draft",
-                                decompositionSummary: "",
-                                phaseNumber: advStatus.nextPhase,
-                                autoAdvance: true,
-                                sourceProjectId: projectId,
-                              });
-                              phaseReport.nextProjectId = nextProject.id;
-                              await store.setPhaseReport(ctx.state, parentProjectId, projectId, phaseReport);
-
-                              await store.addPipelineEvent(ctx.state, parentProjectId, projectId, {
-                                type: "progress",
-                                projectId,
-                                pipelineRunId: pipelineRun.id,
-                                message: `Phase ${advStatus.nextPhase} project created: ${nextProject.id.slice(0, 8)}. Open it to continue.`,
-                                timestamp: new Date().toISOString(),
-                              });
-                            }
-
-                            await store.updateProject(ctx.state, parentProjectId, projectId, { status: "complete" });
-                            advDone = true;
-                          } else if (advStatus.status === "failed") {
-                            await store.addPipelineEvent(ctx.state, parentProjectId, projectId, {
-                              type: "advance_failed",
-                              projectId,
-                              pipelineRunId: pipelineRun.id,
-                              message: "Auto-advance failed on RTX.",
-                              timestamp: new Date().toISOString(),
-                            });
-                            await store.updateProject(ctx.state, parentProjectId, projectId, { status: "complete" });
-                            advDone = true;
-                          }
-                        } catch (advPollErr: any) {
-                          ctx.logger.error("project-automation: auto-advance poll error", { error: advPollErr.message });
-                        }
-                      }
-                    } else {
-                      await store.updateProject(ctx.state, parentProjectId, projectId, { status: "complete" });
-                    }
-                  } catch (advErr: any) {
-                    ctx.logger.error("project-automation: auto-advance failed", { error: advErr.message });
-                    await store.updateProject(ctx.state, parentProjectId, projectId, { status: "complete" });
-                  }
+                } catch (actErr: any) {
+                  ctx.logger.error("project-automation: activity log failed", { error: actErr.message });
                 }
+
+                ctx.logger.info("project-automation: pipeline needs review", { projectId });
               } else if (statusData.status === "failed") {
                 await store.updateProject(ctx.state, parentProjectId, projectId, { status: "failed" });
                 done = true;
@@ -608,6 +528,198 @@ const plugin = definePlugin({
       );
       ctx.logger.info("project-automation: RTX API key saved");
       return { ok: true };
+    });
+
+    // ── Human review gate: approve / reject ──
+
+    ctx.actions.register("approve-phase", async (params) => {
+      const parentProjectId = params.parentProjectId as string;
+      const projectId = params.projectId as string;
+      if (!parentProjectId || !projectId) throw new Error("parentProjectId and projectId required");
+
+      const project = await store.getProject(ctx.state, parentProjectId, projectId);
+      if (!project) throw new Error("Project not found: " + projectId);
+      if (project.status !== "needs-review") throw new Error("Project is not awaiting review");
+
+      await store.updateProject(ctx.state, parentProjectId, projectId, { status: "complete" });
+
+      await store.addPipelineEvent(ctx.state, parentProjectId, projectId, {
+        type: "progress",
+        projectId,
+        pipelineRunId: "review-gate",
+        message: "Phase approved by human reviewer.",
+        timestamp: new Date().toISOString(),
+      });
+
+      // Write approval to activity log
+      try {
+        await ctx.activity.log({
+          companyId: parentProjectId,
+          message: `"${project.name}" (Phase ${project.phaseNumber || 1}) approved`,
+          entityType: "automation-project",
+          entityId: projectId,
+          metadata: { status: "approved", phaseNumber: project.phaseNumber || 1 },
+        });
+      } catch (actErr: any) {
+        ctx.logger.error("project-automation: activity log failed", { error: actErr.message });
+      }
+
+      ctx.logger.info("project-automation: phase approved", { projectId });
+
+      // If auto-advance is on, trigger advancement in background
+      if (project.autoAdvance) {
+        const rtxApiKey = ((await ctx.state.get({
+          scopeKind: "instance", stateKey: "rtx-api-key", namespace: "automation",
+        }) as { key: string } | null)?.key) || "";
+
+        const headers: Record<string, string> = { "content-type": "application/json" };
+        if (rtxApiKey) headers["x-api-key"] = rtxApiKey;
+
+        await store.updateProject(ctx.state, parentProjectId, projectId, { status: "advancing" });
+
+        (async () => {
+          try {
+            await store.addPipelineEvent(ctx.state, parentProjectId, projectId, {
+              type: "advance_started",
+              projectId,
+              pipelineRunId: "review-gate",
+              message: `Auto-advance: generating Phase ${(project.phaseNumber || 1) + 1} report and PRD...`,
+              timestamp: new Date().toISOString(),
+            });
+
+            const advStartRes = await ctx.http.fetch(`${RTX_ORCHESTRATOR_URL}/advance/start`, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({
+                currentPhase: project.phaseNumber || 1,
+                pluginDir: "plugins/dev-department",
+                phaseScope: `Phase ${project.phaseNumber || 1}`,
+              }),
+            });
+
+            if (!advStartRes.ok) {
+              throw new Error(`RTX advance start ${advStartRes.status}: ${await advStartRes.text()}`);
+            }
+
+            const advData = await advStartRes.json() as { advanceId: string };
+            let advDone = false;
+            while (!advDone) {
+              await new Promise(r => setTimeout(r, 15_000));
+              try {
+                const advStatusRes = await ctx.http.fetch(
+                  `${RTX_ORCHESTRATOR_URL}/advance/${advData.advanceId}/status`,
+                  { method: "GET", headers },
+                );
+                if (!advStatusRes.ok) continue;
+                const advStatus = await advStatusRes.json() as {
+                  status: string; report: string; nextPrd: string; nextPhase: number;
+                };
+
+                if (advStatus.status === "complete") {
+                  const phaseReport: PhaseReport = {
+                    projectId,
+                    phaseNumber: project.phaseNumber || 1,
+                    report: advStatus.report,
+                    nextPrd: advStatus.nextPrd,
+                    nextPhase: advStatus.nextPhase,
+                    nextProjectId: null,
+                    createdAt: new Date().toISOString(),
+                  };
+                  await store.setPhaseReport(ctx.state, parentProjectId, projectId, phaseReport);
+
+                  await store.addPipelineEvent(ctx.state, parentProjectId, projectId, {
+                    type: "advance_complete",
+                    projectId,
+                    pipelineRunId: "review-gate",
+                    message: `Phase report ready. Next PRD generated for Phase ${advStatus.nextPhase}.`,
+                    timestamp: new Date().toISOString(),
+                  });
+
+                  if (advStatus.nextPrd) {
+                    const nextProject = await store.createProject(ctx.state, parentProjectId, {
+                      parentProjectId,
+                      name: `${project.name.replace(/ — Phase \d+$/, "")} — Phase ${advStatus.nextPhase}`,
+                      prdText: advStatus.nextPrd,
+                      priority: project.priority,
+                      status: "draft",
+                      decompositionSummary: "",
+                      phaseNumber: advStatus.nextPhase,
+                      autoAdvance: true,
+                      sourceProjectId: projectId,
+                    });
+                    phaseReport.nextProjectId = nextProject.id;
+                    await store.setPhaseReport(ctx.state, parentProjectId, projectId, phaseReport);
+
+                    await store.addPipelineEvent(ctx.state, parentProjectId, projectId, {
+                      type: "progress",
+                      projectId,
+                      pipelineRunId: "review-gate",
+                      message: `Phase ${advStatus.nextPhase} project created: ${nextProject.id.slice(0, 8)}. Open it to continue.`,
+                      timestamp: new Date().toISOString(),
+                    });
+                  }
+
+                  await store.updateProject(ctx.state, parentProjectId, projectId, { status: "complete" });
+                  advDone = true;
+                } else if (advStatus.status === "failed") {
+                  await store.addPipelineEvent(ctx.state, parentProjectId, projectId, {
+                    type: "advance_failed",
+                    projectId,
+                    pipelineRunId: "review-gate",
+                    message: "Auto-advance failed on RTX.",
+                    timestamp: new Date().toISOString(),
+                  });
+                  await store.updateProject(ctx.state, parentProjectId, projectId, { status: "complete" });
+                  advDone = true;
+                }
+              } catch (advPollErr: any) {
+                ctx.logger.error("project-automation: auto-advance poll error", { error: advPollErr.message });
+              }
+            }
+          } catch (err: any) {
+            ctx.logger.error("project-automation: auto-advance failed after approval", { error: err.message });
+            await store.updateProject(ctx.state, parentProjectId, projectId, { status: "complete" });
+          }
+        })();
+      }
+
+      return { approved: true, projectId, autoAdvancing: project.autoAdvance };
+    });
+
+    ctx.actions.register("reject-phase", async (params) => {
+      const parentProjectId = params.parentProjectId as string;
+      const projectId = params.projectId as string;
+      const reason = (params.reason as string) || "Rejected by reviewer";
+      if (!parentProjectId || !projectId) throw new Error("parentProjectId and projectId required");
+
+      const project = await store.getProject(ctx.state, parentProjectId, projectId);
+      if (!project) throw new Error("Project not found: " + projectId);
+      if (project.status !== "needs-review") throw new Error("Project is not awaiting review");
+
+      await store.updateProject(ctx.state, parentProjectId, projectId, { status: "failed" });
+
+      await store.addPipelineEvent(ctx.state, parentProjectId, projectId, {
+        type: "pipeline_failed",
+        projectId,
+        pipelineRunId: "review-gate",
+        message: `Phase rejected: ${reason}`,
+        timestamp: new Date().toISOString(),
+      });
+
+      try {
+        await ctx.activity.log({
+          companyId: parentProjectId,
+          message: `"${project.name}" (Phase ${project.phaseNumber || 1}) rejected: ${reason}`,
+          entityType: "automation-project",
+          entityId: projectId,
+          metadata: { status: "rejected", phaseNumber: project.phaseNumber || 1, reason },
+        });
+      } catch (actErr: any) {
+        ctx.logger.error("project-automation: activity log failed", { error: actErr.message });
+      }
+
+      ctx.logger.info("project-automation: phase rejected", { projectId, reason });
+      return { rejected: true, projectId };
     });
 
     // ── Phase 5: Toggle auto-advance ──

@@ -3,7 +3,7 @@
 // =============================================================================
 
 // -- Project status lifecycle --
-export type ProjectStatus = "draft" | "planning" | "ready" | "building" | "reviewing" | "complete" | "failed" | "advancing";
+export type ProjectStatus = "draft" | "planning" | "ready" | "building" | "reviewing" | "needs-review" | "complete" | "failed" | "advancing";
 export type ProjectPriority = "P0" | "P1" | "P2" | "P3";
 
 // -- Build job status --

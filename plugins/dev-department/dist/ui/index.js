@@ -1,6 +1,6 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useState } from "react";
-import { usePluginData, usePluginAction, useHostContext, } from "@paperclipai/plugin-sdk/ui";
+import { usePluginData, usePluginAction, useHostContext, usePluginToast, } from "@paperclipai/plugin-sdk/ui";
 // =============================================================================
 // Theme
 // =============================================================================
@@ -26,6 +26,7 @@ const STATUS_COLORS = {
     ready: { bg: "#3b0764", text: "#c084fc" },
     building: { bg: "#064e3b", text: "#34d399" },
     reviewing: { bg: "#78350f", text: "#fbbf24" },
+    "needs-review": { bg: "#78350f", text: "#fbbf24" },
     complete: { bg: "#14532d", text: "#4ade80" },
     advancing: { bg: "#4c1d95", text: "#c4b5fd" },
     failed: { bg: "#7f1d1d", text: "#f87171" },
@@ -211,6 +212,9 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     const cancelPipelineAction = usePluginAction("cancel-pipeline");
     const toggleAutoAdvanceAction = usePluginAction("toggle-auto-advance");
     const advanceProjectAction = usePluginAction("advance-project");
+    const approvePhaseAction = usePluginAction("approve-phase");
+    const rejectPhaseAction = usePluginAction("reject-phase");
+    const toast = usePluginToast();
     const { data: apiKeyStatus, refresh: refreshApiKey } = usePluginData("api-key-status", {});
     const { data: rtxKeyStatus, refresh: refreshRtxKey } = usePluginData("rtx-key-status", {});
     const { data: progressData } = usePluginData("progress-log", {
@@ -235,6 +239,8 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     const [pipelineStarting, setPipelineStarting] = useState(false);
     const [cancelling, setCancelling] = useState(false);
     const [advancing, setAdvancing] = useState(false);
+    const [showRejectForm, setShowRejectForm] = useState(false);
+    const [rejectReason, setRejectReason] = useState("");
     if (loading)
         return _jsx("div", { style: { padding: "24px", color: C.textMuted }, children: "Loading..." });
     if (error)
@@ -394,6 +400,40 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
             setAdvancing(false);
         }
     };
+    const handleApprovePhase = async () => {
+        try {
+            setActionError(null);
+            await approvePhaseAction({ parentProjectId, projectId });
+            toast({
+                title: "Phase approved",
+                body: project.autoAdvance ? "Auto-advancing to next phase..." : "Phase marked as complete.",
+                tone: "success",
+                ttlMs: 5000,
+            });
+            refresh();
+        }
+        catch (err) {
+            setActionError(err.message || "Failed to approve");
+        }
+    };
+    const handleRejectPhase = async () => {
+        try {
+            setActionError(null);
+            await rejectPhaseAction({ parentProjectId, projectId, reason: rejectReason || "Rejected by reviewer" });
+            setShowRejectForm(false);
+            setRejectReason("");
+            toast({
+                title: "Phase rejected",
+                body: rejectReason || "Rejected by reviewer",
+                tone: "error",
+                ttlMs: 5000,
+            });
+            refresh();
+        }
+        catch (err) {
+            setActionError(err.message || "Failed to reject");
+        }
+    };
     // Calculate total cost
     const totalCost = usage.reduce((sum, u) => sum + u.estimatedCostUsd, 0);
     const canDecompose = project.prdText && (project.status === "draft" || project.status === "failed");
@@ -401,10 +441,63 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     const canStartPipeline = project.status === "ready" && jobs.length > 0;
     const isPipelineRunning = project.status === "building" || project.status === "reviewing";
     const isAdvancing = project.status === "advancing";
+    const needsReview = project.status === "needs-review";
     const canAdvance = project.status === "complete" && !phaseReport;
+    // Toast when project needs review
+    if (needsReview) {
+        toast({
+            dedupeKey: `review-${projectId}`,
+            title: "Review needed",
+            body: `"${project.name}" pipeline complete — approve or reject.`,
+            tone: "warn",
+            ttlMs: 10000,
+        });
+    }
     const { pipeline } = data;
     const myPipelineEvents = pipelineEvents || [];
-    return (_jsxs("div", { children: [actionError && _jsx(ErrorBanner, { message: actionError }), showApiKeyConfig && (_jsxs(Card, { style: { marginBottom: "16px", borderColor: C.accent }, children: [_jsx("h4", { style: { margin: "0 0 12px 0", color: C.text, fontSize: "14px" }, children: "Settings" }), _jsxs("div", { style: { marginBottom: "16px" }, children: [_jsxs(Label, { children: ["Anthropic API Key ", apiKeyStatus?.configured && _jsx("span", { style: { color: C.success, marginLeft: "6px" }, children: "configured" })] }), _jsx("p", { style: { color: C.textMuted, fontSize: "12px", margin: "0 0 6px 0" }, children: "Used for PRD decomposition (Sonnet)." }), _jsxs("div", { style: { display: "flex", gap: "8px", alignItems: "center" }, children: [_jsx("input", { type: "password", value: apiKeyInput, onChange: (e) => setApiKeyInput(e.target.value), placeholder: "sk-ant-...", style: {
+    return (_jsxs("div", { children: [actionError && _jsx(ErrorBanner, { message: actionError }), needsReview && (_jsxs(Card, { style: {
+                    marginBottom: "16px",
+                    borderColor: C.warning,
+                    border: `2px solid ${C.warning}`,
+                    background: "linear-gradient(135deg, #1e293b 0%, #1a1a2e 100%)",
+                }, children: [_jsxs("div", { style: { display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }, children: [_jsx("span", { style: { fontSize: "20px" }, children: "\u26A0" }), _jsx("h3", { style: { margin: 0, color: C.warning, fontSize: "16px" }, children: "Review Required" }), _jsx(Badge, { label: `Phase ${project.phaseNumber || 1}`, colors: {
+                                    [`Phase ${project.phaseNumber || 1}`]: { bg: "#4c1d95", text: "#c4b5fd" },
+                                } })] }), _jsx("p", { style: { color: C.text, fontSize: "13px", margin: "0 0 12px 0" }, children: "Pipeline complete. Review the results below before approving or rejecting." }), _jsxs("div", { style: {
+                            display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "12px",
+                        }, children: [_jsxs("div", { style: {
+                                    padding: "10px", backgroundColor: "#0f172a", borderRadius: "6px", textAlign: "center",
+                                }, children: [_jsx("div", { style: { fontSize: "18px", fontWeight: 700, color: C.text }, children: jobs.length }), _jsx("div", { style: { fontSize: "11px", color: C.textDim }, children: "Build Jobs" })] }), _jsxs("div", { style: {
+                                    padding: "10px", backgroundColor: "#0f172a", borderRadius: "6px", textAlign: "center",
+                                }, children: [_jsx("div", { style: { fontSize: "18px", fontWeight: 700, color: C.text }, children: reviews.length }), _jsx("div", { style: { fontSize: "11px", color: C.textDim }, children: "Review Results" })] }), _jsxs("div", { style: {
+                                    padding: "10px", backgroundColor: "#0f172a", borderRadius: "6px", textAlign: "center",
+                                }, children: [_jsxs("div", { style: { fontSize: "18px", fontWeight: 700, color: C.success }, children: ["$", totalCost.toFixed(4)] }), _jsx("div", { style: { fontSize: "11px", color: C.textDim }, children: "Total Cost" })] })] }), reviews.length > 0 && (_jsx("div", { style: { display: "flex", gap: "8px", marginBottom: "12px", flexWrap: "wrap" }, children: ["haiku", "deepseek", "codex"].map(tier => {
+                            const tierReviews = reviews.filter(r => r.tier === tier);
+                            const latest = tierReviews[tierReviews.length - 1];
+                            if (!latest)
+                                return null;
+                            const tc = TIER_COLORS[tier] || TIER_COLORS.haiku;
+                            const vc = VERDICT_COLORS[latest.verdict] || VERDICT_COLORS.unknown;
+                            return (_jsxs("div", { style: {
+                                    display: "flex", alignItems: "center", gap: "6px",
+                                    padding: "6px 10px", backgroundColor: "#0f172a",
+                                    borderRadius: "6px", border: `1px solid ${C.border}`,
+                                }, children: [_jsx("span", { style: {
+                                            padding: "2px 8px", borderRadius: "10px", fontSize: "10px",
+                                            fontWeight: 600, backgroundColor: tc.bg, color: tc.text,
+                                        }, children: tc.label }), _jsx("span", { style: {
+                                            padding: "2px 8px", borderRadius: "10px", fontSize: "10px",
+                                            fontWeight: 600, backgroundColor: vc.bg, color: vc.text,
+                                            textTransform: "uppercase",
+                                        }, children: latest.verdict })] }, tier));
+                        }) })), pipeline?.completedAt && pipeline?.startedAt && (_jsxs("div", { style: { fontSize: "12px", color: C.textDim, marginBottom: "12px" }, children: ["Pipeline duration: ", (() => {
+                                const ms = new Date(pipeline.completedAt).getTime() - new Date(pipeline.startedAt).getTime();
+                                const mins = Math.floor(ms / 60000);
+                                const secs = Math.floor((ms % 60000) / 1000);
+                                return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+                            })()] })), project.autoAdvance && (_jsxs("div", { style: {
+                            fontSize: "12px", color: "#c4b5fd", marginBottom: "12px",
+                            padding: "6px 10px", backgroundColor: "#4c1d95", borderRadius: "6px",
+                        }, children: ["Auto-advance is ON \u2014 approving will generate Phase ", (project.phaseNumber || 1) + 1, " report and PRD."] })), !showRejectForm ? (_jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsxs(Btn, { variant: "primary", onClick: handleApprovePhase, style: { backgroundColor: "#059669", flex: 1, padding: "12px", fontSize: "14px", fontWeight: 600 }, children: ["Approve Phase ", project.phaseNumber || 1] }), _jsx(Btn, { variant: "danger", onClick: () => setShowRejectForm(true), style: { flex: 1, padding: "12px", fontSize: "14px", fontWeight: 600 }, children: "Reject" })] })) : (_jsxs("div", { style: { display: "grid", gap: "8px" }, children: [_jsx(Label, { children: "Rejection reason" }), _jsx(TextArea, { value: rejectReason, onChange: setRejectReason, placeholder: "What needs to change before this phase can be approved?", rows: 3 }), _jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx(Btn, { variant: "danger", onClick: handleRejectPhase, style: { flex: 1 }, children: "Confirm Reject" }), _jsx(Btn, { variant: "ghost", onClick: () => { setShowRejectForm(false); setRejectReason(""); }, children: "Cancel" })] })] }))] })), showApiKeyConfig && (_jsxs(Card, { style: { marginBottom: "16px", borderColor: C.accent }, children: [_jsx("h4", { style: { margin: "0 0 12px 0", color: C.text, fontSize: "14px" }, children: "Settings" }), _jsxs("div", { style: { marginBottom: "16px" }, children: [_jsxs(Label, { children: ["Anthropic API Key ", apiKeyStatus?.configured && _jsx("span", { style: { color: C.success, marginLeft: "6px" }, children: "configured" })] }), _jsx("p", { style: { color: C.textMuted, fontSize: "12px", margin: "0 0 6px 0" }, children: "Used for PRD decomposition (Sonnet)." }), _jsxs("div", { style: { display: "flex", gap: "8px", alignItems: "center" }, children: [_jsx("input", { type: "password", value: apiKeyInput, onChange: (e) => setApiKeyInput(e.target.value), placeholder: "sk-ant-...", style: {
                                             flex: 1, padding: "10px 12px", backgroundColor: C.bgInput, color: C.text,
                                             border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box",
                                         } }), _jsx(Btn, { variant: "primary", onClick: handleSaveApiKey, disabled: !apiKeyInput.trim(), children: "Save" })] })] }), _jsxs("div", { style: { marginBottom: "12px" }, children: [_jsxs(Label, { children: ["RTX Pipeline Key ", rtxKeyStatus?.configured && _jsx("span", { style: { color: C.success, marginLeft: "6px" }, children: "configured" })] }), _jsx("p", { style: { color: C.textMuted, fontSize: "12px", margin: "0 0 6px 0" }, children: "Authenticates with RTX orchestrator. Same value as ~/.popebot-api-key on RTX." }), _jsxs("div", { style: { display: "flex", gap: "8px", alignItems: "center" }, children: [_jsx("input", { type: "password", value: rtxKeyInput, onChange: (e) => setRtxKeyInput(e.target.value), placeholder: "API key from RTX", style: {
@@ -554,6 +647,11 @@ function ProjectsView() {
 // Exported Slot Components
 // =============================================================================
 export function AutomationSidebar({ context }) {
+    const { projectId: parentProjectId } = useHostContext();
+    const { data: reviewData } = usePluginData("review-count", {
+        parentProjectId: parentProjectId || "",
+    });
+    const reviewCount = reviewData?.count || 0;
     return (_jsxs("div", { style: {
             display: "flex", alignItems: "center", gap: "10px",
             padding: "10px 14px", color: C.text, fontSize: "14px", fontWeight: 500,
@@ -561,7 +659,13 @@ export function AutomationSidebar({ context }) {
                     display: "inline-flex", alignItems: "center", justifyContent: "center",
                     width: "24px", height: "24px", borderRadius: "6px",
                     backgroundColor: C.accent, color: "#fff", fontSize: "13px", fontWeight: 700, flexShrink: 0,
-                }, children: "A" }), _jsx("span", { children: "Automation" })] }));
+                }, children: "A" }), _jsx("span", { children: "Automation" }), reviewCount > 0 && (_jsx("span", { style: {
+                    marginLeft: "auto",
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    minWidth: "20px", height: "20px", borderRadius: "10px",
+                    backgroundColor: C.warning, color: "#000",
+                    fontSize: "11px", fontWeight: 700, padding: "0 6px",
+                }, children: reviewCount }))] }));
 }
 export function ProjectsTab({ context }) {
     return _jsx(ProjectsView, {});
