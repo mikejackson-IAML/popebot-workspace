@@ -163,7 +163,7 @@ function EditableJobCard({ job, index, onSave }) {
 // =============================================================================
 // Project Detail View
 // =============================================================================
-function ProjectDetailView({ projectId, parentProjectId, companyId, onBack }) {
+function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     const { data, loading, error, refresh } = usePluginData("project-detail", {
         parentProjectId,
         projectId,
@@ -173,19 +173,12 @@ function ProjectDetailView({ projectId, parentProjectId, companyId, onBack }) {
     const decomposePrdAction = usePluginAction("decompose-prd");
     const updateJobAction = usePluginAction("update-job");
     const { events: progressEvents } = usePluginStream("pipeline-progress");
-    // Agent config — stored per Paperclip project
-    const { data: agentConfig, refresh: refreshAgentConfig } = usePluginData("agent-config", {
-        parentProjectId,
-    });
-    const saveAgentConfig = usePluginAction("save-agent-config");
     const [editing, setEditing] = useState(false);
     const [editName, setEditName] = useState("");
     const [editPrd, setEditPrd] = useState("");
     const [editPriority, setEditPriority] = useState("P2");
     const [actionError, setActionError] = useState(null);
     const [decomposing, setDecomposing] = useState(false);
-    const [showAgentConfig, setShowAgentConfig] = useState(false);
-    const [agentIdInput, setAgentIdInput] = useState("");
     if (loading)
         return _jsx("div", { style: { padding: "24px", color: C.textMuted }, children: "Loading..." });
     if (error)
@@ -228,16 +221,10 @@ function ProjectDetailView({ projectId, parentProjectId, companyId, onBack }) {
         }
     };
     const handleDecompose = async () => {
-        const agentId = agentConfig?.decomposerAgentId;
-        if (!agentId) {
-            setShowAgentConfig(true);
-            setActionError("Configure the PRD Decomposer agent ID first (from PopeBot cluster).");
-            return;
-        }
         try {
             setActionError(null);
             setDecomposing(true);
-            await decomposePrdAction({ parentProjectId, projectId, agentId, companyId });
+            await decomposePrdAction({ parentProjectId, projectId });
             refresh();
         }
         catch (err) {
@@ -245,17 +232,6 @@ function ProjectDetailView({ projectId, parentProjectId, companyId, onBack }) {
         }
         finally {
             setDecomposing(false);
-        }
-    };
-    const handleSaveAgentConfig = async () => {
-        try {
-            await saveAgentConfig({ parentProjectId, decomposerAgentId: agentIdInput.trim() });
-            setShowAgentConfig(false);
-            setActionError(null);
-            refreshAgentConfig();
-        }
-        catch (err) {
-            setActionError(err.message || "Failed to save agent config");
         }
     };
     const handleUpdateJob = async (jobId, updates) => {
@@ -271,7 +247,7 @@ function ProjectDetailView({ projectId, parentProjectId, companyId, onBack }) {
     // Calculate total cost
     const totalCost = usage.reduce((sum, u) => sum + u.estimatedCostUsd, 0);
     const canDecompose = project.prdText && (project.status === "draft" || project.status === "failed");
-    return (_jsxs("div", { children: [actionError && _jsx(ErrorBanner, { message: actionError }), showAgentConfig && (_jsxs(Card, { style: { marginBottom: "16px", borderColor: C.accent }, children: [_jsx("h4", { style: { margin: "0 0 8px 0", color: C.text, fontSize: "14px" }, children: "Configure Decomposer Agent" }), _jsx("p", { style: { color: C.textMuted, fontSize: "12px", margin: "0 0 8px 0" }, children: "Paste the PopeBot agent ID for the PRD Decomposer role in your cluster. Find it in PopeBot UI \u2192 Cluster \u2192 PRD Decomposer role \u2192 copy agent ID." }), _jsxs("div", { style: { display: "flex", gap: "8px", alignItems: "center" }, children: [_jsx(Input, { value: agentIdInput, onChange: setAgentIdInput, placeholder: "e.g. ab1be4d8-xxxx-xxxx-xxxx-xxxxxxxxxxxx" }), _jsx(Btn, { variant: "primary", onClick: handleSaveAgentConfig, disabled: !agentIdInput.trim(), children: "Save" }), _jsx(Btn, { variant: "ghost", onClick: () => setShowAgentConfig(false), children: "Cancel" })] }), agentConfig?.decomposerAgentId && (_jsxs("div", { style: { marginTop: "6px", fontSize: "11px", color: C.textDim }, children: ["Current: ", agentConfig.decomposerAgentId] }))] })), _jsxs("div", { style: { display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }, children: [_jsx(Btn, { onClick: onBack, variant: "ghost", children: "\u2190 Back" }), _jsx("h2", { style: { margin: 0, color: C.text, fontSize: "18px", flex: 1 }, children: project.name }), _jsx(Badge, { label: project.priority, colors: PRIORITY_COLORS }), _jsx(Badge, { label: project.status })] }), editing ? (_jsx(Card, { style: { marginBottom: "16px" }, children: _jsxs("div", { style: { display: "grid", gap: "12px" }, children: [_jsxs("div", { children: [_jsx(Label, { children: "Project Name" }), _jsx(Input, { value: editName, onChange: setEditName, placeholder: "Project name" })] }), _jsxs("div", { children: [_jsx(Label, { children: "Priority" }), _jsx(Select, { value: editPriority, onChange: (v) => setEditPriority(v), options: [
+    return (_jsxs("div", { children: [actionError && _jsx(ErrorBanner, { message: actionError }), _jsxs("div", { style: { display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }, children: [_jsx(Btn, { onClick: onBack, variant: "ghost", children: "\u2190 Back" }), _jsx("h2", { style: { margin: 0, color: C.text, fontSize: "18px", flex: 1 }, children: project.name }), _jsx(Badge, { label: project.priority, colors: PRIORITY_COLORS }), _jsx(Badge, { label: project.status })] }), editing ? (_jsx(Card, { style: { marginBottom: "16px" }, children: _jsxs("div", { style: { display: "grid", gap: "12px" }, children: [_jsxs("div", { children: [_jsx(Label, { children: "Project Name" }), _jsx(Input, { value: editName, onChange: setEditName, placeholder: "Project name" })] }), _jsxs("div", { children: [_jsx(Label, { children: "Priority" }), _jsx(Select, { value: editPriority, onChange: (v) => setEditPriority(v), options: [
                                         { value: "P0", label: "P0 — Critical" },
                                         { value: "P1", label: "P1 — High" },
                                         { value: "P2", label: "P2 — Medium" },
@@ -295,7 +271,7 @@ function ProjectDetailView({ projectId, parentProjectId, companyId, onBack }) {
                                     color: C.text, fontSize: "13px", lineHeight: "1.5",
                                     whiteSpace: "pre-wrap", wordBreak: "break-word",
                                     maxHeight: "300px", overflow: "auto", margin: 0,
-                                }, children: project.prdText })] })) : (_jsx(Card, { style: { border: "1px dashed #475569" }, children: _jsx("span", { style: { color: C.textDim }, children: "No PRD attached. Edit this project to add one." }) }))] })), (decomposing || myProgress.length > 0) && (_jsxs(Card, { style: { marginBottom: "16px", borderColor: C.accent }, children: [_jsx(Label, { children: "Progress" }), _jsxs("div", { style: { maxHeight: "150px", overflow: "auto" }, children: [myProgress.map((evt, i) => (_jsxs("div", { style: { fontSize: "12px", color: C.textMuted, padding: "2px 0", fontFamily: "monospace" }, children: [_jsx("span", { style: { color: C.textDim, marginRight: "8px" }, children: new Date(evt.timestamp).toLocaleTimeString() }), evt.message] }, i))), decomposing && myProgress.length === 0 && (_jsx("div", { style: { fontSize: "12px", color: C.accent }, children: "Starting decomposition..." }))] })] })), _jsxs("div", { style: { marginBottom: "16px" }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }, children: [_jsxs("h3", { style: { margin: 0, color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }, children: ["Build Jobs ", jobs.length > 0 && `(${jobs.length})`] }), _jsxs("div", { style: { display: "flex", gap: "6px", alignItems: "center" }, children: [canDecompose && (_jsx(Btn, { variant: "primary", onClick: handleDecompose, disabled: decomposing, children: decomposing ? "Analyzing..." : (jobs.length > 0 ? "Re-Analyze PRD" : "Analyze PRD") })), _jsx(Btn, { variant: "ghost", onClick: () => { setAgentIdInput(agentConfig?.decomposerAgentId || ""); setShowAgentConfig(true); }, style: { fontSize: "12px", padding: "6px 8px" }, children: "\u2699" })] })] }), jobs.length === 0 ? (_jsx(Card, { style: { border: "1px dashed #475569", textAlign: "center", padding: "24px" }, children: _jsx("span", { style: { color: C.textDim }, children: project.prdText
+                                }, children: project.prdText })] })) : (_jsx(Card, { style: { border: "1px dashed #475569" }, children: _jsx("span", { style: { color: C.textDim }, children: "No PRD attached. Edit this project to add one." }) }))] })), (decomposing || myProgress.length > 0) && (_jsxs(Card, { style: { marginBottom: "16px", borderColor: C.accent }, children: [_jsx(Label, { children: "Progress" }), _jsxs("div", { style: { maxHeight: "150px", overflow: "auto" }, children: [myProgress.map((evt, i) => (_jsxs("div", { style: { fontSize: "12px", color: C.textMuted, padding: "2px 0", fontFamily: "monospace" }, children: [_jsx("span", { style: { color: C.textDim, marginRight: "8px" }, children: new Date(evt.timestamp).toLocaleTimeString() }), evt.message] }, i))), decomposing && myProgress.length === 0 && (_jsx("div", { style: { fontSize: "12px", color: C.accent }, children: "Starting decomposition..." }))] })] })), _jsxs("div", { style: { marginBottom: "16px" }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }, children: [_jsxs("h3", { style: { margin: 0, color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }, children: ["Build Jobs ", jobs.length > 0 && `(${jobs.length})`] }), canDecompose && (_jsx(Btn, { variant: "primary", onClick: handleDecompose, disabled: decomposing, children: decomposing ? "Analyzing..." : (jobs.length > 0 ? "Re-Analyze PRD" : "Analyze PRD") }))] }), jobs.length === 0 ? (_jsx(Card, { style: { border: "1px dashed #475569", textAlign: "center", padding: "24px" }, children: _jsx("span", { style: { color: C.textDim }, children: project.prdText
                                 ? 'PRD attached. Click "Analyze PRD" to decompose into build jobs.'
                                 : "Add a PRD first, then analyze it to generate build jobs." }) })) : (_jsx("div", { style: { display: "flex", flexDirection: "column", gap: "6px" }, children: jobs.map((job, i) => (_jsx(EditableJobCard, { job: job, index: i, onSave: (updates) => handleUpdateJob(job.id, updates) }, job.id))) }))] }), totalCost > 0 && (_jsxs(Card, { style: { marginBottom: "16px" }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" }, children: [_jsx(Label, { children: "LLM Cost" }), _jsxs("span", { style: { color: C.success, fontSize: "14px", fontWeight: 600 }, children: ["$", totalCost.toFixed(4)] })] }), _jsx("div", { style: { marginTop: "4px" }, children: usage.map((u, i) => (_jsxs("div", { style: { fontSize: "11px", color: C.textDim }, children: [u.model, " (", u.purpose, ") \u2014 ", u.inputTokens.toLocaleString(), " in / ", u.outputTokens.toLocaleString(), " out \u2014 $", u.estimatedCostUsd.toFixed(4)] }, i))) })] })), _jsx(Card, { style: { border: "1px dashed #475569", marginBottom: "12px" }, children: _jsx("span", { style: { color: C.textDim, fontSize: "13px" }, children: "Pipeline execution \u2014 coming in Phase 3" }) }), _jsx(Card, { style: { border: "1px dashed #475569" }, children: _jsx("span", { style: { color: C.textDim, fontSize: "13px" }, children: "Reviews and cost tracking \u2014 coming in Phase 4" }) })] }));
 }
@@ -303,7 +279,7 @@ function ProjectDetailView({ projectId, parentProjectId, companyId, onBack }) {
 // Main Projects View
 // =============================================================================
 function ProjectsView() {
-    const { projectId: parentProjectId, companyId } = useHostContext();
+    const { projectId: parentProjectId } = useHostContext();
     const { data: projects, loading, error, refresh } = usePluginData("projects", {
         parentProjectId: parentProjectId || "",
     });
@@ -316,7 +292,7 @@ function ProjectsView() {
     }
     // Detail view
     if (selectedProjectId) {
-        return (_jsx("div", { style: { padding: "24px", color: C.text, fontFamily: "system-ui" }, children: _jsx(ProjectDetailView, { projectId: selectedProjectId, parentProjectId: parentProjectId, companyId: companyId || "", onBack: () => { setSelectedProjectId(null); refresh(); } }) }));
+        return (_jsx("div", { style: { padding: "24px", color: C.text, fontFamily: "system-ui" }, children: _jsx(ProjectDetailView, { projectId: selectedProjectId, parentProjectId: parentProjectId, onBack: () => { setSelectedProjectId(null); refresh(); } }) }));
     }
     // List view
     const handleCreate = async (data) => {

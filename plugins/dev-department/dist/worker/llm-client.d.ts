@@ -1,28 +1,31 @@
-import type { PluginAgentsClient, PluginStreamsClient } from "@paperclipai/plugin-sdk";
-export interface AgentClientDeps {
-    agents: PluginAgentsClient;
-    streams: PluginStreamsClient;
+import type { PluginHttpClient, PluginSecretsClient } from "@paperclipai/plugin-sdk";
+import type { LLMModel, LLMPurpose, LLMUsage } from "./types.js";
+export interface LLMRequest {
+    model: LLMModel;
+    purpose: LLMPurpose;
+    system?: string;
+    messages: Array<{
+        role: "user" | "assistant";
+        content: string;
+    }>;
+    maxTokens?: number;
+    temperature?: number;
 }
-export interface AgentRequest {
-    agentId: string;
-    companyId: string;
-    prompt: string;
-    /** Stream channel to relay agent events to UI */
-    streamChannel?: string;
-    /** Callback for each streamed chunk */
-    onProgress?: (message: string) => void;
-}
-export interface AgentResponse {
-    /** Full accumulated text response from the agent */
+export interface LLMResponse {
     content: string;
-    /** Session ID (can be reused for follow-up messages) */
-    sessionId: string;
-    /** Run ID for this specific invocation */
-    runId: string;
+    usage: {
+        inputTokens: number;
+        outputTokens: number;
+    };
+    model: string;
+    stopReason: string;
 }
-/**
- * Send a prompt to a PopeBot agent via a session, streaming events back.
- * Uses the Claude Code subscription through PopeBot — no direct API key needed.
- */
-export declare function callAgent(deps: AgentClientDeps, request: AgentRequest): Promise<AgentResponse>;
+export interface LLMClientDeps {
+    http: PluginHttpClient;
+    secrets: PluginSecretsClient;
+}
+export declare function callLLM(deps: LLMClientDeps, request: LLMRequest): Promise<{
+    response: LLMResponse;
+    usageRecord: Omit<LLMUsage, "id" | "projectId" | "timestamp">;
+}>;
 //# sourceMappingURL=llm-client.d.ts.map
