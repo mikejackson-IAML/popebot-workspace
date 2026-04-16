@@ -459,10 +459,12 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const decomposePrdAction = usePluginAction("decompose-prd");
   const updateJobAction = usePluginAction("update-job");
   const saveApiKeyAction = usePluginAction("save-api-key");
+  const saveRtxKeyAction = usePluginAction("save-rtx-key");
   const startPipelineAction = usePluginAction("start-pipeline");
   const cancelPipelineAction = usePluginAction("cancel-pipeline");
 
   const { data: apiKeyStatus, refresh: refreshApiKey } = usePluginData<{ configured: boolean }>("api-key-status", {});
+  const { data: rtxKeyStatus, refresh: refreshRtxKey } = usePluginData<{ configured: boolean }>("rtx-key-status", {});
   const { data: progressData } = usePluginData<ProgressMessage[]>("progress-log", {
     parentProjectId, projectId,
   });
@@ -478,6 +480,7 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const [decomposing, setDecomposing] = useState(false);
   const [showApiKeyConfig, setShowApiKeyConfig] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState("");
+  const [rtxKeyInput, setRtxKeyInput] = useState("");
   const [pipelineStarting, setPipelineStarting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
 
@@ -543,12 +546,22 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const handleSaveApiKey = async () => {
     try {
       await saveApiKeyAction({ apiKey: apiKeyInput });
-      setShowApiKeyConfig(false);
       setApiKeyInput("");
       setActionError(null);
       refreshApiKey();
     } catch (err: any) {
       setActionError(err.message || "Failed to save API key");
+    }
+  };
+
+  const handleSaveRtxKey = async () => {
+    try {
+      await saveRtxKeyAction({ apiKey: rtxKeyInput });
+      setRtxKeyInput("");
+      setActionError(null);
+      refreshRtxKey();
+    } catch (err: any) {
+      setActionError(err.message || "Failed to save RTX key");
     }
   };
 
@@ -563,6 +576,11 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   };
 
   const handleStartPipeline = async () => {
+    if (!rtxKeyStatus?.configured) {
+      setShowApiKeyConfig(true);
+      setActionError("Configure your RTX Pipeline Key first (gear icon).");
+      return;
+    }
     try {
       setActionError(null);
       setPipelineStarting(true);
@@ -607,30 +625,56 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
     <div>
       {actionError && <ErrorBanner message={actionError} />}
 
-      {/* API Key Config Panel */}
+      {/* Settings Panel — API Keys */}
       {showApiKeyConfig && (
         <Card style={{ marginBottom: "16px", borderColor: C.accent }}>
-          <h4 style={{ margin: "0 0 8px 0", color: C.text, fontSize: "14px" }}>Anthropic API Key</h4>
-          <p style={{ color: C.textMuted, fontSize: "12px", margin: "0 0 8px 0" }}>
-            Enter your API key from console.anthropic.com. Used for Opus PRD decomposition.
-          </p>
-          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-            <input
-              type="password"
-              value={apiKeyInput}
-              onChange={(e) => setApiKeyInput(e.target.value)}
-              placeholder="sk-ant-..."
-              style={{
-                flex: 1, padding: "10px 12px", backgroundColor: C.bgInput, color: C.text,
-                border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box",
-              }}
-            />
-            <Btn variant="primary" onClick={handleSaveApiKey} disabled={!apiKeyInput.trim()}>Save</Btn>
-            <Btn variant="ghost" onClick={() => setShowApiKeyConfig(false)}>Cancel</Btn>
+          <h4 style={{ margin: "0 0 12px 0", color: C.text, fontSize: "14px" }}>Settings</h4>
+
+          {/* Anthropic API Key */}
+          <div style={{ marginBottom: "16px" }}>
+            <Label>Anthropic API Key {apiKeyStatus?.configured && <span style={{ color: C.success, marginLeft: "6px" }}>configured</span>}</Label>
+            <p style={{ color: C.textMuted, fontSize: "12px", margin: "0 0 6px 0" }}>
+              Used for PRD decomposition (Sonnet).
+            </p>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <input
+                type="password"
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                placeholder="sk-ant-..."
+                style={{
+                  flex: 1, padding: "10px 12px", backgroundColor: C.bgInput, color: C.text,
+                  border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box",
+                }}
+              />
+              <Btn variant="primary" onClick={handleSaveApiKey} disabled={!apiKeyInput.trim()}>Save</Btn>
+            </div>
           </div>
-          {apiKeyStatus?.configured && (
-            <div style={{ marginTop: "6px", fontSize: "11px", color: C.success }}>Key already configured. Enter a new one to replace it.</div>
-          )}
+
+          {/* RTX Pipeline API Key */}
+          <div style={{ marginBottom: "12px" }}>
+            <Label>RTX Pipeline Key {rtxKeyStatus?.configured && <span style={{ color: C.success, marginLeft: "6px" }}>configured</span>}</Label>
+            <p style={{ color: C.textMuted, fontSize: "12px", margin: "0 0 6px 0" }}>
+              Authenticates with RTX orchestrator. Same value as ~/.popebot-api-key on RTX.
+            </p>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <input
+                type="password"
+                value={rtxKeyInput}
+                onChange={(e) => setRtxKeyInput(e.target.value)}
+                placeholder="API key from RTX"
+                style={{
+                  flex: 1, padding: "10px 12px", backgroundColor: C.bgInput, color: C.text,
+                  border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box",
+                }}
+              />
+              <Btn variant="primary" onClick={handleSaveRtxKey} disabled={!rtxKeyInput.trim()}>Save</Btn>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <Btn variant="ghost" onClick={() => setShowApiKeyConfig(false)}>Close</Btn>
+          </div>
         </Card>
       )}
 

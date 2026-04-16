@@ -176,9 +176,11 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     const decomposePrdAction = usePluginAction("decompose-prd");
     const updateJobAction = usePluginAction("update-job");
     const saveApiKeyAction = usePluginAction("save-api-key");
+    const saveRtxKeyAction = usePluginAction("save-rtx-key");
     const startPipelineAction = usePluginAction("start-pipeline");
     const cancelPipelineAction = usePluginAction("cancel-pipeline");
     const { data: apiKeyStatus, refresh: refreshApiKey } = usePluginData("api-key-status", {});
+    const { data: rtxKeyStatus, refresh: refreshRtxKey } = usePluginData("rtx-key-status", {});
     const { data: progressData } = usePluginData("progress-log", {
         parentProjectId, projectId,
     });
@@ -193,6 +195,7 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     const [decomposing, setDecomposing] = useState(false);
     const [showApiKeyConfig, setShowApiKeyConfig] = useState(false);
     const [apiKeyInput, setApiKeyInput] = useState("");
+    const [rtxKeyInput, setRtxKeyInput] = useState("");
     const [pipelineStarting, setPipelineStarting] = useState(false);
     const [cancelling, setCancelling] = useState(false);
     if (loading)
@@ -257,13 +260,23 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     const handleSaveApiKey = async () => {
         try {
             await saveApiKeyAction({ apiKey: apiKeyInput });
-            setShowApiKeyConfig(false);
             setApiKeyInput("");
             setActionError(null);
             refreshApiKey();
         }
         catch (err) {
             setActionError(err.message || "Failed to save API key");
+        }
+    };
+    const handleSaveRtxKey = async () => {
+        try {
+            await saveRtxKeyAction({ apiKey: rtxKeyInput });
+            setRtxKeyInput("");
+            setActionError(null);
+            refreshRtxKey();
+        }
+        catch (err) {
+            setActionError(err.message || "Failed to save RTX key");
         }
     };
     const handleUpdateJob = async (jobId, updates) => {
@@ -277,6 +290,11 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
         }
     };
     const handleStartPipeline = async () => {
+        if (!rtxKeyStatus?.configured) {
+            setShowApiKeyConfig(true);
+            setActionError("Configure your RTX Pipeline Key first (gear icon).");
+            return;
+        }
         try {
             setActionError(null);
             setPipelineStarting(true);
@@ -317,10 +335,13 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     const isPipelineRunning = project.status === "building" || project.status === "reviewing";
     const { pipeline } = data;
     const myPipelineEvents = pipelineEvents || [];
-    return (_jsxs("div", { children: [actionError && _jsx(ErrorBanner, { message: actionError }), showApiKeyConfig && (_jsxs(Card, { style: { marginBottom: "16px", borderColor: C.accent }, children: [_jsx("h4", { style: { margin: "0 0 8px 0", color: C.text, fontSize: "14px" }, children: "Anthropic API Key" }), _jsx("p", { style: { color: C.textMuted, fontSize: "12px", margin: "0 0 8px 0" }, children: "Enter your API key from console.anthropic.com. Used for Opus PRD decomposition." }), _jsxs("div", { style: { display: "flex", gap: "8px", alignItems: "center" }, children: [_jsx("input", { type: "password", value: apiKeyInput, onChange: (e) => setApiKeyInput(e.target.value), placeholder: "sk-ant-...", style: {
-                                    flex: 1, padding: "10px 12px", backgroundColor: C.bgInput, color: C.text,
-                                    border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box",
-                                } }), _jsx(Btn, { variant: "primary", onClick: handleSaveApiKey, disabled: !apiKeyInput.trim(), children: "Save" }), _jsx(Btn, { variant: "ghost", onClick: () => setShowApiKeyConfig(false), children: "Cancel" })] }), apiKeyStatus?.configured && (_jsx("div", { style: { marginTop: "6px", fontSize: "11px", color: C.success }, children: "Key already configured. Enter a new one to replace it." }))] })), _jsxs("div", { style: { display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }, children: [_jsx(Btn, { onClick: onBack, variant: "ghost", children: "\u2190 Back" }), _jsx("h2", { style: { margin: 0, color: C.text, fontSize: "18px", flex: 1 }, children: project.name }), _jsx(Badge, { label: project.priority, colors: PRIORITY_COLORS }), _jsx(Badge, { label: project.status })] }), editing ? (_jsx(Card, { style: { marginBottom: "16px" }, children: _jsxs("div", { style: { display: "grid", gap: "12px" }, children: [_jsxs("div", { children: [_jsx(Label, { children: "Project Name" }), _jsx(Input, { value: editName, onChange: setEditName, placeholder: "Project name" })] }), _jsxs("div", { children: [_jsx(Label, { children: "Priority" }), _jsx(Select, { value: editPriority, onChange: (v) => setEditPriority(v), options: [
+    return (_jsxs("div", { children: [actionError && _jsx(ErrorBanner, { message: actionError }), showApiKeyConfig && (_jsxs(Card, { style: { marginBottom: "16px", borderColor: C.accent }, children: [_jsx("h4", { style: { margin: "0 0 12px 0", color: C.text, fontSize: "14px" }, children: "Settings" }), _jsxs("div", { style: { marginBottom: "16px" }, children: [_jsxs(Label, { children: ["Anthropic API Key ", apiKeyStatus?.configured && _jsx("span", { style: { color: C.success, marginLeft: "6px" }, children: "configured" })] }), _jsx("p", { style: { color: C.textMuted, fontSize: "12px", margin: "0 0 6px 0" }, children: "Used for PRD decomposition (Sonnet)." }), _jsxs("div", { style: { display: "flex", gap: "8px", alignItems: "center" }, children: [_jsx("input", { type: "password", value: apiKeyInput, onChange: (e) => setApiKeyInput(e.target.value), placeholder: "sk-ant-...", style: {
+                                            flex: 1, padding: "10px 12px", backgroundColor: C.bgInput, color: C.text,
+                                            border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box",
+                                        } }), _jsx(Btn, { variant: "primary", onClick: handleSaveApiKey, disabled: !apiKeyInput.trim(), children: "Save" })] })] }), _jsxs("div", { style: { marginBottom: "12px" }, children: [_jsxs(Label, { children: ["RTX Pipeline Key ", rtxKeyStatus?.configured && _jsx("span", { style: { color: C.success, marginLeft: "6px" }, children: "configured" })] }), _jsx("p", { style: { color: C.textMuted, fontSize: "12px", margin: "0 0 6px 0" }, children: "Authenticates with RTX orchestrator. Same value as ~/.popebot-api-key on RTX." }), _jsxs("div", { style: { display: "flex", gap: "8px", alignItems: "center" }, children: [_jsx("input", { type: "password", value: rtxKeyInput, onChange: (e) => setRtxKeyInput(e.target.value), placeholder: "API key from RTX", style: {
+                                            flex: 1, padding: "10px 12px", backgroundColor: C.bgInput, color: C.text,
+                                            border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box",
+                                        } }), _jsx(Btn, { variant: "primary", onClick: handleSaveRtxKey, disabled: !rtxKeyInput.trim(), children: "Save" })] })] }), _jsx("div", { style: { display: "flex", justifyContent: "flex-end" }, children: _jsx(Btn, { variant: "ghost", onClick: () => setShowApiKeyConfig(false), children: "Close" }) })] })), _jsxs("div", { style: { display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }, children: [_jsx(Btn, { onClick: onBack, variant: "ghost", children: "\u2190 Back" }), _jsx("h2", { style: { margin: 0, color: C.text, fontSize: "18px", flex: 1 }, children: project.name }), _jsx(Badge, { label: project.priority, colors: PRIORITY_COLORS }), _jsx(Badge, { label: project.status })] }), editing ? (_jsx(Card, { style: { marginBottom: "16px" }, children: _jsxs("div", { style: { display: "grid", gap: "12px" }, children: [_jsxs("div", { children: [_jsx(Label, { children: "Project Name" }), _jsx(Input, { value: editName, onChange: setEditName, placeholder: "Project name" })] }), _jsxs("div", { children: [_jsx(Label, { children: "Priority" }), _jsx(Select, { value: editPriority, onChange: (v) => setEditPriority(v), options: [
                                         { value: "P0", label: "P0 — Critical" },
                                         { value: "P1", label: "P1 — High" },
                                         { value: "P2", label: "P2 — Medium" },
