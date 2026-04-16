@@ -51,6 +51,8 @@ const plugin = definePlugin({
             const phaseNumber = params.phaseNumber || 1;
             const autoAdvance = params.autoAdvance || false;
             const sourceProjectId = params.sourceProjectId || null;
+            const repoUrl = params.repoUrl || "mikejackson-IAML/popebot-workspace";
+            const reviewDir = params.reviewDir || "plugins/dev-department";
             const project = await store.createProject(ctx.state, parentProjectId, {
                 parentProjectId,
                 name,
@@ -58,6 +60,8 @@ const plugin = definePlugin({
                 priority,
                 status: "draft",
                 decompositionSummary: "",
+                repoUrl,
+                reviewDir,
                 phaseNumber,
                 autoAdvance,
                 sourceProjectId,
@@ -212,8 +216,6 @@ const plugin = definePlugin({
         ctx.actions.register("start-pipeline", async (params) => {
             const parentProjectId = params.parentProjectId;
             const projectId = params.projectId;
-            const reviewDir = params.reviewDir || "plugins/dev-department";
-            const phaseScope = params.phaseScope || "";
             if (!parentProjectId || !projectId)
                 throw new Error("parentProjectId and projectId required");
             const project = await store.getProject(ctx.state, parentProjectId, projectId);
@@ -260,8 +262,9 @@ const plugin = definePlugin({
                         body: JSON.stringify({
                             projectId,
                             jobs: jobsPayload,
-                            reviewDir,
-                            phaseScope,
+                            reviewDir: project.reviewDir || "plugins/dev-department",
+                            phaseScope: `Phase ${project.phaseNumber || 1}: ${project.name}`,
+                            repo: project.repoUrl || "mikejackson-IAML/popebot-workspace",
                         }),
                     });
                     if (!startRes.ok) {
@@ -294,12 +297,43 @@ const plugin = definePlugin({
                     // Background polling loop — check status every 10s until done
                     let eventsSeen = 0;
                     let done = false;
+                    const pollStartedAt = Date.now();
+                    const MAX_POLL_MS = 30 * 60 * 1000; // 30 minutes max
+                    let consecutive404s = 0;
                     while (!done) {
                         await new Promise(r => setTimeout(r, 10_000));
+                        // Timeout guard
+                        if (Date.now() - pollStartedAt > MAX_POLL_MS) {
+                            await store.updateProject(ctx.state, parentProjectId, projectId, { status: "failed" });
+                            await store.addPipelineEvent(ctx.state, parentProjectId, projectId, {
+                                type: "pipeline_failed",
+                                projectId,
+                                pipelineRunId: pipelineRun.id,
+                                message: "Pipeline polling timed out after 30 minutes. The build may still be running on RTX — check manually.",
+                                timestamp: new Date().toISOString(),
+                            });
+                            break;
+                        }
                         try {
                             const statusRes = await ctx.http.fetch(`${RTX_ORCHESTRATOR_URL}/pipeline/${rtxPipelineId}/status?since=${eventsSeen}`, { method: "GET", headers });
+                            if (statusRes.status === 404) {
+                                consecutive404s++;
+                                if (consecutive404s >= 3) {
+                                    await store.updateProject(ctx.state, parentProjectId, projectId, { status: "failed" });
+                                    await store.addPipelineEvent(ctx.state, parentProjectId, projectId, {
+                                        type: "pipeline_failed",
+                                        projectId,
+                                        pipelineRunId: pipelineRun.id,
+                                        message: "Pipeline lost — RTX orchestrator may have restarted. Use Retry to re-run.",
+                                        timestamp: new Date().toISOString(),
+                                    });
+                                    done = true;
+                                    continue;
+                                }
+                            }
                             if (!statusRes.ok)
                                 continue;
+                            consecutive404s = 0;
                             const statusData = await statusRes.json();
                             // Write new events to state
                             for (const evt of statusData.events) {
@@ -311,6 +345,22 @@ const plugin = definePlugin({
                                     details: evt.details,
                                     timestamp: evt.timestamp,
                                 });
+                                // Save PR URL when a build job is merged
+                                if (evt.type === "build_merged" && evt.details) {
+                                    const prUrl = evt.details.prUrl;
+                                    if (prUrl) {
+                                        // Try to match PR to a job (update first job without a PR URL)
+                                        const currentJobs = await store.getJobs(ctx.state, parentProjectId, projectId);
+                                        const jobWithoutPr = currentJobs.find(j => !j.prUrl && (j.status === "dispatched" || j.status === "building"));
+                                        if (jobWithoutPr) {
+                                            await store.updateJob(ctx.state, parentProjectId, projectId, jobWithoutPr.id, {
+                                                prUrl,
+                                                status: "merged",
+                                                completedAt: new Date().toISOString(),
+                                            });
+                                        }
+                                    }
+                                }
                                 // Save ReviewResult when a review tier completes
                                 if (evt.type === "review_tier_complete" && evt.details) {
                                     const d = evt.details;
@@ -432,6 +482,36 @@ const plugin = definePlugin({
             ctx.logger.info("project-automation: pipeline cancelled", { projectId });
             return { cancelled: true };
         });
+        ctx.actions.register("retry-pipeline", async (params) => {
+            const parentProjectId = params.parentProjectId;
+            const projectId = params.projectId;
+            if (!parentProjectId || !projectId)
+                throw new Error("parentProjectId and projectId required");
+            const project = await store.getProject(ctx.state, parentProjectId, projectId);
+            if (!project)
+                throw new Error("Project not found: " + projectId);
+            if (project.status !== "failed")
+                throw new Error("Can only retry failed projects");
+            const jobs = await store.getJobs(ctx.state, parentProjectId, projectId);
+            if (jobs.length === 0)
+                throw new Error("No build jobs to retry");
+            // Reset job statuses back to pending
+            for (const job of jobs) {
+                await store.updateJob(ctx.state, parentProjectId, projectId, job.id, {
+                    status: "pending",
+                    dispatchedAt: null,
+                    completedAt: null,
+                    popebotJobId: null,
+                    prUrl: null,
+                });
+            }
+            // Reset project status to ready so Start Build works
+            await store.updateProject(ctx.state, parentProjectId, projectId, { status: "ready" });
+            // Clear old pipeline data
+            await store.clearPipelineEvents(ctx.state, parentProjectId, projectId);
+            ctx.logger.info("project-automation: pipeline reset for retry", { projectId });
+            return { reset: true, projectId };
+        });
         // ── RTX API key config (separate from Anthropic key) ──
         ctx.data.register("rtx-key-status", async () => {
             const config = await ctx.state.get({
@@ -545,6 +625,8 @@ const plugin = definePlugin({
                                             priority: project.priority,
                                             status: "draft",
                                             decompositionSummary: "",
+                                            repoUrl: project.repoUrl || "mikejackson-IAML/popebot-workspace",
+                                            reviewDir: project.reviewDir || "plugins/dev-department",
                                             phaseNumber: advStatus.nextPhase,
                                             autoAdvance: true,
                                             sourceProjectId: projectId,
@@ -732,6 +814,8 @@ const plugin = definePlugin({
                                         priority: project.priority,
                                         status: "draft",
                                         decompositionSummary: "",
+                                        repoUrl: project.repoUrl || "mikejackson-IAML/popebot-workspace",
+                                        reviewDir: project.reviewDir || "plugins/dev-department",
                                         phaseNumber: statusData.nextPhase,
                                         autoAdvance: true,
                                         sourceProjectId: projectId,

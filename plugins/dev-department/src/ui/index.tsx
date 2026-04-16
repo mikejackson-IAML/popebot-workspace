@@ -25,6 +25,8 @@ interface ManagedProject {
   priority: ProjectPriority;
   status: ProjectStatus;
   decompositionSummary: string;
+  repoUrl: string;
+  reviewDir: string;
   phaseNumber: number;
   autoAdvance: boolean;
   sourceProjectId: string | null;
@@ -296,12 +298,14 @@ function ErrorBanner({ message }: { message: string }) {
 // =============================================================================
 
 function CreateProjectForm({ onSubmit, onCancel }: {
-  onSubmit: (data: { name: string; prdText: string; priority: ProjectPriority }) => void;
+  onSubmit: (data: { name: string; prdText: string; priority: ProjectPriority; repoUrl: string; reviewDir: string }) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState("");
   const [prdText, setPrdText] = useState("");
   const [priority, setPriority] = useState<ProjectPriority>("P2");
+  const [repoUrl, setRepoUrl] = useState("mikejackson-IAML/popebot-workspace");
+  const [reviewDir, setReviewDir] = useState("plugins/dev-department");
   const [fileName, setFileName] = useState<string | null>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -342,6 +346,16 @@ function CreateProjectForm({ onSubmit, onCancel }: {
             ]}
           />
         </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <div>
+            <Label>GitHub Repo (owner/name)</Label>
+            <Input value={repoUrl} onChange={setRepoUrl} placeholder="owner/repo-name" />
+          </div>
+          <div>
+            <Label>Review Directory</Label>
+            <Input value={reviewDir} onChange={setReviewDir} placeholder="src/ or plugins/my-plugin" />
+          </div>
+        </div>
         <div>
           <Label>PRD</Label>
           <div style={{
@@ -374,7 +388,7 @@ function CreateProjectForm({ onSubmit, onCancel }: {
         </div>
         <div style={{ display: "flex", gap: "8px" }}>
           <Btn
-            onClick={() => onSubmit({ name, prdText, priority })}
+            onClick={() => onSubmit({ name, prdText, priority, repoUrl, reviewDir })}
             variant="primary"
             disabled={!name.trim()}
           >
@@ -442,6 +456,17 @@ function EditableJobCard({ job, index, onSave }: {
               config: { bg: "#713f12", text: "#fde68a" },
               schema: { bg: "#164e63", text: "#67e8f9" },
             }} />
+          )}
+          {job.prUrl && (
+            <a
+              href={job.prUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              style={{ fontSize: "11px", color: C.accent, textDecoration: "none" }}
+            >
+              PR
+            </a>
           )}
           <Badge label={job.status} />
           <span style={{ color: C.textDim, fontSize: "12px" }}>{expanded ? "▲" : "▼"}</span>
@@ -530,6 +555,7 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const advanceProjectAction = usePluginAction("advance-project");
   const approvePhaseAction = usePluginAction("approve-phase");
   const rejectPhaseAction = usePluginAction("reject-phase");
+  const retryPipelineAction = usePluginAction("retry-pipeline");
   const toast = usePluginToast();
 
   const { data: apiKeyStatus, refresh: refreshApiKey } = usePluginData<{ configured: boolean }>("api-key-status", {});
@@ -715,6 +741,16 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
       setActionError(err.message || "Failed to start phase advancement");
     } finally {
       setAdvancing(false);
+    }
+  };
+
+  const handleRetryPipeline = async () => {
+    try {
+      setActionError(null);
+      await retryPipelineAction({ parentProjectId, projectId });
+      refresh();
+    } catch (err: any) {
+      setActionError(err.message || "Failed to retry");
     }
   };
 
@@ -1034,6 +1070,12 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
           <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
             <Btn onClick={startEditing} variant="default">Edit Project</Btn>
             <Btn onClick={handleDelete} variant="danger">Delete</Btn>
+            {project.status === "failed" && jobs.length > 0 && (
+              <Btn variant="primary" onClick={handleRetryPipeline}
+                style={{ backgroundColor: "#d97706" }}>
+                Retry Pipeline
+              </Btn>
+            )}
             {canAdvance && (
               <Btn variant="primary" onClick={handleAdvanceProject} disabled={advancing}
                 style={{ backgroundColor: "#7c3aed" }}>
@@ -1466,7 +1508,7 @@ function ProjectsView() {
   }
 
   // List view
-  const handleCreate = async (data: { name: string; prdText: string; priority: ProjectPriority }) => {
+  const handleCreate = async (data: { name: string; prdText: string; priority: ProjectPriority; repoUrl: string; reviewDir: string }) => {
     try {
       setActionError(null);
       const result = await createProjectAction({
@@ -1474,6 +1516,8 @@ function ProjectsView() {
         name: data.name,
         prdText: data.prdText,
         priority: data.priority,
+        repoUrl: data.repoUrl,
+        reviewDir: data.reviewDir,
       }) as ManagedProject;
       setShowCreate(false);
       setSelectedProjectId(result.id);

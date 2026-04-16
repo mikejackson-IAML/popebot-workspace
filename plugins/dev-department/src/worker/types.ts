@@ -48,6 +48,10 @@ export interface ManagedProject {
   status: ProjectStatus;
   /** Summary generated after PRD decomposition */
   decompositionSummary: string;
+  /** GitHub repo in owner/name format (e.g. "mikejackson-IAML/popebot-workspace") */
+  repoUrl: string;
+  /** Directory within the repo to review (e.g. "plugins/dev-department", "src/") */
+  reviewDir: string;
   /** Phase number (1-based, for auto-advance tracking) */
   phaseNumber: number;
   /** Enable auto-advance: on pipeline complete → report → next PRD → new project → build */

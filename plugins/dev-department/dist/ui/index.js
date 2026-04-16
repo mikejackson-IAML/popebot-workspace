@@ -118,6 +118,8 @@ function CreateProjectForm({ onSubmit, onCancel }) {
     const [name, setName] = useState("");
     const [prdText, setPrdText] = useState("");
     const [priority, setPriority] = useState("P2");
+    const [repoUrl, setRepoUrl] = useState("mikejackson-IAML/popebot-workspace");
+    const [reviewDir, setReviewDir] = useState("plugins/dev-department");
     const [fileName, setFileName] = useState(null);
     const handleFileUpload = (e) => {
         const file = e.target.files?.[0];
@@ -142,13 +144,13 @@ function CreateProjectForm({ onSubmit, onCancel }) {
                                     { value: "P1", label: "P1 — High" },
                                     { value: "P2", label: "P2 — Medium" },
                                     { value: "P3", label: "P3 — Low" },
-                                ] })] }), _jsxs("div", { children: [_jsx(Label, { children: "PRD" }), _jsxs("div", { style: {
+                                ] })] }), _jsxs("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }, children: [_jsxs("div", { children: [_jsx(Label, { children: "GitHub Repo (owner/name)" }), _jsx(Input, { value: repoUrl, onChange: setRepoUrl, placeholder: "owner/repo-name" })] }), _jsxs("div", { children: [_jsx(Label, { children: "Review Directory" }), _jsx(Input, { value: reviewDir, onChange: setReviewDir, placeholder: "src/ or plugins/my-plugin" })] })] }), _jsxs("div", { children: [_jsx(Label, { children: "PRD" }), _jsxs("div", { style: {
                                     display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px",
                                 }, children: [_jsxs("label", { style: {
                                             padding: "8px 16px", backgroundColor: "#374151", color: C.text,
                                             borderRadius: "6px", fontSize: "13px", fontWeight: 500, cursor: "pointer",
                                             border: `1px solid ${C.border}`,
-                                        }, children: ["Upload File", _jsx("input", { type: "file", accept: ".md,.txt,.markdown,.rst,.prd", onChange: handleFileUpload, style: { display: "none" } })] }), fileName && (_jsx("span", { style: { color: C.textMuted, fontSize: "13px" }, children: fileName })), _jsx("span", { style: { color: C.textDim, fontSize: "12px" }, children: "or paste below" })] }), _jsx(TextArea, { value: prdText, onChange: setPrdText, placeholder: "Paste your PRD here, or upload a file above...", rows: 12 })] }), _jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx(Btn, { onClick: () => onSubmit({ name, prdText, priority }), variant: "primary", disabled: !name.trim(), children: "Create Project" }), _jsx(Btn, { onClick: onCancel, variant: "ghost", children: "Cancel" })] })] })] }));
+                                        }, children: ["Upload File", _jsx("input", { type: "file", accept: ".md,.txt,.markdown,.rst,.prd", onChange: handleFileUpload, style: { display: "none" } })] }), fileName && (_jsx("span", { style: { color: C.textMuted, fontSize: "13px" }, children: fileName })), _jsx("span", { style: { color: C.textDim, fontSize: "12px" }, children: "or paste below" })] }), _jsx(TextArea, { value: prdText, onChange: setPrdText, placeholder: "Paste your PRD here, or upload a file above...", rows: 12 })] }), _jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx(Btn, { onClick: () => onSubmit({ name, prdText, priority, repoUrl, reviewDir }), variant: "primary", disabled: !name.trim(), children: "Create Project" }), _jsx(Btn, { onClick: onCancel, variant: "ghost", children: "Cancel" })] })] })] }));
 }
 // =============================================================================
 // Project Detail View
@@ -174,7 +176,7 @@ function EditableJobCard({ job, index, onSave }) {
                                     workflow: { bg: "#4c1d95", text: "#c4b5fd" },
                                     config: { bg: "#713f12", text: "#fde68a" },
                                     schema: { bg: "#164e63", text: "#67e8f9" },
-                                } })), _jsx(Badge, { label: job.status }), _jsx("span", { style: { color: C.textDim, fontSize: "12px" }, children: expanded ? "▲" : "▼" })] })] }), expanded && !editingJob && (_jsxs("div", { style: { marginTop: "12px", paddingTop: "12px", borderTop: `1px solid ${C.border}` }, children: [_jsx("pre", { style: {
+                                } })), job.prUrl && (_jsx("a", { href: job.prUrl, target: "_blank", rel: "noopener noreferrer", onClick: (e) => e.stopPropagation(), style: { fontSize: "11px", color: C.accent, textDecoration: "none" }, children: "PR" })), _jsx(Badge, { label: job.status }), _jsx("span", { style: { color: C.textDim, fontSize: "12px" }, children: expanded ? "▲" : "▼" })] })] }), expanded && !editingJob && (_jsxs("div", { style: { marginTop: "12px", paddingTop: "12px", borderTop: `1px solid ${C.border}` }, children: [_jsx("pre", { style: {
                             color: C.text, fontSize: "12px", lineHeight: "1.5",
                             whiteSpace: "pre-wrap", wordBreak: "break-word", margin: "0 0 8px 0",
                         }, children: job.description }), job.status === "pending" && (_jsx(Btn, { variant: "ghost", onClick: (e) => { e.stopPropagation(); setEditingJob(true); }, style: { fontSize: "12px", padding: "4px 10px" }, children: "Edit Job" }))] })), editingJob && (_jsxs("div", { style: { marginTop: "12px", paddingTop: "12px", borderTop: `1px solid ${C.border}`, display: "grid", gap: "8px" }, children: [_jsxs("div", { children: [_jsx(Label, { children: "Job Name" }), _jsx(Input, { value: editName, onChange: setEditName })] }), _jsxs("div", { children: [_jsx(Label, { children: "Description" }), _jsx(TextArea, { value: editDesc, onChange: setEditDesc, rows: 4 })] }), _jsxs("div", { children: [_jsx(Label, { children: "Target Files (comma-separated)" }), _jsx(Input, { value: editFiles, onChange: setEditFiles, placeholder: "src/foo.ts, src/bar.ts" })] }), _jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx(Btn, { variant: "primary", onClick: handleSaveJob, style: { fontSize: "12px", padding: "4px 10px" }, children: "Save" }), _jsx(Btn, { variant: "ghost", onClick: () => setEditingJob(false), style: { fontSize: "12px", padding: "4px 10px" }, children: "Cancel" })] })] }))] }));
@@ -214,6 +216,7 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     const advanceProjectAction = usePluginAction("advance-project");
     const approvePhaseAction = usePluginAction("approve-phase");
     const rejectPhaseAction = usePluginAction("reject-phase");
+    const retryPipelineAction = usePluginAction("retry-pipeline");
     const toast = usePluginToast();
     const { data: apiKeyStatus, refresh: refreshApiKey } = usePluginData("api-key-status", {});
     const { data: rtxKeyStatus, refresh: refreshRtxKey } = usePluginData("rtx-key-status", {});
@@ -400,6 +403,16 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
             setAdvancing(false);
         }
     };
+    const handleRetryPipeline = async () => {
+        try {
+            setActionError(null);
+            await retryPipelineAction({ parentProjectId, projectId });
+            refresh();
+        }
+        catch (err) {
+            setActionError(err.message || "Failed to retry");
+        }
+    };
     const handleApprovePhase = async () => {
         try {
             setActionError(null);
@@ -523,7 +536,7 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
                                                                 setEditPrd(text);
                                                         };
                                                         reader.readAsText(file);
-                                                    }, style: { display: "none" } })] }), _jsx("span", { style: { color: C.textDim, fontSize: "12px" }, children: "or edit below" })] }), _jsx(TextArea, { value: editPrd, onChange: setEditPrd, placeholder: "PRD text...", rows: 12 })] }), _jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx(Btn, { onClick: handleSave, variant: "primary", children: "Save" }), _jsx(Btn, { onClick: () => setEditing(false), variant: "ghost", children: "Cancel" })] })] }) })) : (_jsxs("div", { style: { display: "grid", gap: "12px", marginBottom: "20px" }, children: [_jsxs("div", { style: { display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }, children: [_jsx(Btn, { onClick: startEditing, variant: "default", children: "Edit Project" }), _jsx(Btn, { onClick: handleDelete, variant: "danger", children: "Delete" }), canAdvance && (_jsx(Btn, { variant: "primary", onClick: handleAdvanceProject, disabled: advancing, style: { backgroundColor: "#7c3aed" }, children: advancing ? "Advancing..." : `Advance to Phase ${(project.phaseNumber || 1) + 1}` })), _jsxs("div", { onClick: handleToggleAutoAdvance, style: {
+                                                    }, style: { display: "none" } })] }), _jsx("span", { style: { color: C.textDim, fontSize: "12px" }, children: "or edit below" })] }), _jsx(TextArea, { value: editPrd, onChange: setEditPrd, placeholder: "PRD text...", rows: 12 })] }), _jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx(Btn, { onClick: handleSave, variant: "primary", children: "Save" }), _jsx(Btn, { onClick: () => setEditing(false), variant: "ghost", children: "Cancel" })] })] }) })) : (_jsxs("div", { style: { display: "grid", gap: "12px", marginBottom: "20px" }, children: [_jsxs("div", { style: { display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }, children: [_jsx(Btn, { onClick: startEditing, variant: "default", children: "Edit Project" }), _jsx(Btn, { onClick: handleDelete, variant: "danger", children: "Delete" }), project.status === "failed" && jobs.length > 0 && (_jsx(Btn, { variant: "primary", onClick: handleRetryPipeline, style: { backgroundColor: "#d97706" }, children: "Retry Pipeline" })), canAdvance && (_jsx(Btn, { variant: "primary", onClick: handleAdvanceProject, disabled: advancing, style: { backgroundColor: "#7c3aed" }, children: advancing ? "Advancing..." : `Advance to Phase ${(project.phaseNumber || 1) + 1}` })), _jsxs("div", { onClick: handleToggleAutoAdvance, style: {
                                     display: "flex", alignItems: "center", gap: "6px", cursor: "pointer",
                                     padding: "6px 12px", borderRadius: "6px",
                                     backgroundColor: project.autoAdvance ? "#4c1d95" : "#374151",
@@ -627,6 +640,8 @@ function ProjectsView() {
                 name: data.name,
                 prdText: data.prdText,
                 priority: data.priority,
+                repoUrl: data.repoUrl,
+                reviewDir: data.reviewDir,
             });
             setShowCreate(false);
             setSelectedProjectId(result.id);
