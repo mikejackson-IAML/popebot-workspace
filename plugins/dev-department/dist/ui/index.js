@@ -1,6 +1,6 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useState } from "react";
-import { usePluginData, usePluginAction, useHostContext, } from "@paperclipai/plugin-sdk/ui";
+import { usePluginData, usePluginAction, useHostContext, usePluginStream, } from "@paperclipai/plugin-sdk/ui";
 // =============================================================================
 // Theme
 // =============================================================================
@@ -134,6 +134,31 @@ function CreateProjectForm({ onSubmit, onCancel }) {
 // =============================================================================
 // Project Detail View
 // =============================================================================
+// =============================================================================
+// Editable Job Card
+// =============================================================================
+function EditableJobCard({ job, index, onSave }) {
+    const [expanded, setExpanded] = useState(false);
+    const [editingJob, setEditingJob] = useState(false);
+    const [editName, setEditName] = useState(job.name);
+    const [editDesc, setEditDesc] = useState(job.description);
+    const [editFiles, setEditFiles] = useState(job.targetFiles.join(", "));
+    const handleSaveJob = () => {
+        onSave({
+            name: editName,
+            description: editDesc,
+            targetFiles: editFiles.split(",").map((f) => f.trim()).filter(Boolean),
+        });
+        setEditingJob(false);
+    };
+    return (_jsxs(Card, { style: { padding: "12px 16px" }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }, onClick: () => !editingJob && setExpanded(!expanded), children: [_jsxs("div", { style: { display: "flex", alignItems: "center", gap: "12px", flex: 1 }, children: [_jsxs("span", { style: { color: C.textDim, fontSize: "13px", fontWeight: 700, minWidth: "24px" }, children: ["#", index + 1] }), _jsxs("div", { style: { flex: 1 }, children: [_jsx("div", { style: { fontWeight: 600, color: C.text, fontSize: "14px" }, children: job.name }), _jsx("div", { style: { fontSize: "12px", color: C.textDim, marginTop: "2px" }, children: job.targetFiles.join(", ") || "No target files" })] })] }), _jsxs("div", { style: { display: "flex", alignItems: "center", gap: "8px" }, children: [job.dependencies.length > 0 && (_jsxs("span", { style: { fontSize: "11px", color: C.textDim }, children: ["depends: ", job.dependencies.join(", ")] })), _jsx(Badge, { label: job.status }), _jsx("span", { style: { color: C.textDim, fontSize: "12px" }, children: expanded ? "▲" : "▼" })] })] }), expanded && !editingJob && (_jsxs("div", { style: { marginTop: "12px", paddingTop: "12px", borderTop: `1px solid ${C.border}` }, children: [_jsx("pre", { style: {
+                            color: C.text, fontSize: "12px", lineHeight: "1.5",
+                            whiteSpace: "pre-wrap", wordBreak: "break-word", margin: "0 0 8px 0",
+                        }, children: job.description }), job.status === "pending" && (_jsx(Btn, { variant: "ghost", onClick: (e) => { e.stopPropagation(); setEditingJob(true); }, style: { fontSize: "12px", padding: "4px 10px" }, children: "Edit Job" }))] })), editingJob && (_jsxs("div", { style: { marginTop: "12px", paddingTop: "12px", borderTop: `1px solid ${C.border}`, display: "grid", gap: "8px" }, children: [_jsxs("div", { children: [_jsx(Label, { children: "Job Name" }), _jsx(Input, { value: editName, onChange: setEditName })] }), _jsxs("div", { children: [_jsx(Label, { children: "Description" }), _jsx(TextArea, { value: editDesc, onChange: setEditDesc, rows: 4 })] }), _jsxs("div", { children: [_jsx(Label, { children: "Target Files (comma-separated)" }), _jsx(Input, { value: editFiles, onChange: setEditFiles, placeholder: "src/foo.ts, src/bar.ts" })] }), _jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx(Btn, { variant: "primary", onClick: handleSaveJob, style: { fontSize: "12px", padding: "4px 10px" }, children: "Save" }), _jsx(Btn, { variant: "ghost", onClick: () => setEditingJob(false), style: { fontSize: "12px", padding: "4px 10px" }, children: "Cancel" })] })] }))] }));
+}
+// =============================================================================
+// Project Detail View
+// =============================================================================
 function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     const { data, loading, error, refresh } = usePluginData("project-detail", {
         parentProjectId,
@@ -141,18 +166,24 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     });
     const updateProject = usePluginAction("update-project");
     const deleteProjectAction = usePluginAction("delete-project");
+    const decomposePrdAction = usePluginAction("decompose-prd");
+    const updateJobAction = usePluginAction("update-job");
+    const { events: progressEvents } = usePluginStream("pipeline-progress");
     const [editing, setEditing] = useState(false);
     const [editName, setEditName] = useState("");
     const [editPrd, setEditPrd] = useState("");
     const [editPriority, setEditPriority] = useState("P2");
     const [actionError, setActionError] = useState(null);
+    const [decomposing, setDecomposing] = useState(false);
     if (loading)
         return _jsx("div", { style: { padding: "24px", color: C.textMuted }, children: "Loading..." });
     if (error)
         return _jsx(ErrorBanner, { message: error.message });
     if (!data)
         return _jsx(ErrorBanner, { message: "Project not found" });
-    const { project, jobs } = data;
+    const { project, jobs, usage } = data;
+    // Filter progress events for this project
+    const myProgress = progressEvents.filter((e) => e.projectId === projectId);
     const startEditing = () => {
         setEditName(project.name);
         setEditPrd(project.prdText);
@@ -185,6 +216,33 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
             setActionError(err.message || "Failed to delete");
         }
     };
+    const handleDecompose = async () => {
+        try {
+            setActionError(null);
+            setDecomposing(true);
+            await decomposePrdAction({ parentProjectId, projectId });
+            refresh();
+        }
+        catch (err) {
+            setActionError(err.message || "Decomposition failed");
+        }
+        finally {
+            setDecomposing(false);
+        }
+    };
+    const handleUpdateJob = async (jobId, updates) => {
+        try {
+            setActionError(null);
+            await updateJobAction({ parentProjectId, projectId, jobId, updates });
+            refresh();
+        }
+        catch (err) {
+            setActionError(err.message || "Failed to update job");
+        }
+    };
+    // Calculate total cost
+    const totalCost = usage.reduce((sum, u) => sum + u.estimatedCostUsd, 0);
+    const canDecompose = project.prdText && (project.status === "draft" || project.status === "failed");
     return (_jsxs("div", { children: [actionError && _jsx(ErrorBanner, { message: actionError }), _jsxs("div", { style: { display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }, children: [_jsx(Btn, { onClick: onBack, variant: "ghost", children: "\u2190 Back" }), _jsx("h2", { style: { margin: 0, color: C.text, fontSize: "18px", flex: 1 }, children: project.name }), _jsx(Badge, { label: project.priority, colors: PRIORITY_COLORS }), _jsx(Badge, { label: project.status })] }), editing ? (_jsx(Card, { style: { marginBottom: "16px" }, children: _jsxs("div", { style: { display: "grid", gap: "12px" }, children: [_jsxs("div", { children: [_jsx(Label, { children: "Project Name" }), _jsx(Input, { value: editName, onChange: setEditName, placeholder: "Project name" })] }), _jsxs("div", { children: [_jsx(Label, { children: "Priority" }), _jsx(Select, { value: editPriority, onChange: (v) => setEditPriority(v), options: [
                                         { value: "P0", label: "P0 — Critical" },
                                         { value: "P1", label: "P1 — High" },
@@ -205,13 +263,13 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
                                                                 setEditPrd(text);
                                                         };
                                                         reader.readAsText(file);
-                                                    }, style: { display: "none" } })] }), _jsx("span", { style: { color: C.textDim, fontSize: "12px" }, children: "or edit below" })] }), _jsx(TextArea, { value: editPrd, onChange: setEditPrd, placeholder: "PRD text...", rows: 12 })] }), _jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx(Btn, { onClick: handleSave, variant: "primary", children: "Save" }), _jsx(Btn, { onClick: () => setEditing(false), variant: "ghost", children: "Cancel" })] })] }) })) : (_jsxs("div", { style: { display: "grid", gap: "12px", marginBottom: "20px" }, children: [_jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx(Btn, { onClick: startEditing, variant: "default", children: "Edit Project" }), _jsx(Btn, { onClick: handleDelete, variant: "danger", children: "Delete" })] }), project.prdText ? (_jsxs(Card, { children: [_jsx(Label, { children: "PRD" }), _jsx("pre", { style: {
+                                                    }, style: { display: "none" } })] }), _jsx("span", { style: { color: C.textDim, fontSize: "12px" }, children: "or edit below" })] }), _jsx(TextArea, { value: editPrd, onChange: setEditPrd, placeholder: "PRD text...", rows: 12 })] }), _jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx(Btn, { onClick: handleSave, variant: "primary", children: "Save" }), _jsx(Btn, { onClick: () => setEditing(false), variant: "ghost", children: "Cancel" })] })] }) })) : (_jsxs("div", { style: { display: "grid", gap: "12px", marginBottom: "20px" }, children: [_jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx(Btn, { onClick: startEditing, variant: "default", children: "Edit Project" }), _jsx(Btn, { onClick: handleDelete, variant: "danger", children: "Delete" })] }), project.decompositionSummary && (_jsxs(Card, { children: [_jsx(Label, { children: "Decomposition Summary" }), _jsx("p", { style: { color: C.text, fontSize: "13px", lineHeight: "1.5", margin: 0 }, children: project.decompositionSummary })] })), project.prdText ? (_jsxs(Card, { children: [_jsx(Label, { children: "PRD" }), _jsx("pre", { style: {
                                     color: C.text, fontSize: "13px", lineHeight: "1.5",
                                     whiteSpace: "pre-wrap", wordBreak: "break-word",
                                     maxHeight: "300px", overflow: "auto", margin: 0,
-                                }, children: project.prdText })] })) : (_jsx(Card, { style: { border: "1px dashed #475569" }, children: _jsx("span", { style: { color: C.textDim }, children: "No PRD attached. Edit this project to add one." }) }))] })), _jsxs("div", { style: { marginBottom: "16px" }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }, children: [_jsx("h3", { style: { margin: 0, color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }, children: "Build Jobs" }), project.prdText && project.status === "draft" && (_jsx(Btn, { variant: "primary", onClick: () => { }, disabled: true, children: "Analyze PRD (coming soon)" }))] }), jobs.length === 0 ? (_jsx(Card, { style: { border: "1px dashed #475569", textAlign: "center", padding: "24px" }, children: _jsx("span", { style: { color: C.textDim }, children: project.prdText
-                                ? "PRD attached. Click \"Analyze PRD\" to decompose into build jobs."
-                                : "Add a PRD first, then analyze it to generate build jobs." }) })) : (_jsx("div", { style: { display: "flex", flexDirection: "column", gap: "6px" }, children: jobs.map((job, i) => (_jsxs(Card, { style: { display: "flex", justifyContent: "space-between", alignItems: "center" }, children: [_jsxs("div", { style: { display: "flex", alignItems: "center", gap: "12px" }, children: [_jsxs("span", { style: { color: C.textDim, fontSize: "13px", fontWeight: 700, minWidth: "24px" }, children: ["#", i + 1] }), _jsxs("div", { children: [_jsx("div", { style: { fontWeight: 600, color: C.text, fontSize: "14px" }, children: job.name }), _jsx("div", { style: { fontSize: "12px", color: C.textDim, marginTop: "2px" }, children: job.targetFiles.join(", ") || "No target files" })] })] }), _jsx(Badge, { label: job.status })] }, job.id))) }))] }), _jsx(Card, { style: { border: "1px dashed #475569", marginBottom: "12px" }, children: _jsx("span", { style: { color: C.textDim, fontSize: "13px" }, children: "Pipeline execution \u2014 coming in Phase 3" }) }), _jsx(Card, { style: { border: "1px dashed #475569" }, children: _jsx("span", { style: { color: C.textDim, fontSize: "13px" }, children: "Reviews and cost tracking \u2014 coming in Phase 4" }) })] }));
+                                }, children: project.prdText })] })) : (_jsx(Card, { style: { border: "1px dashed #475569" }, children: _jsx("span", { style: { color: C.textDim }, children: "No PRD attached. Edit this project to add one." }) }))] })), (decomposing || myProgress.length > 0) && (_jsxs(Card, { style: { marginBottom: "16px", borderColor: C.accent }, children: [_jsx(Label, { children: "Progress" }), _jsxs("div", { style: { maxHeight: "150px", overflow: "auto" }, children: [myProgress.map((evt, i) => (_jsxs("div", { style: { fontSize: "12px", color: C.textMuted, padding: "2px 0", fontFamily: "monospace" }, children: [_jsx("span", { style: { color: C.textDim, marginRight: "8px" }, children: new Date(evt.timestamp).toLocaleTimeString() }), evt.message] }, i))), decomposing && myProgress.length === 0 && (_jsx("div", { style: { fontSize: "12px", color: C.accent }, children: "Starting decomposition..." }))] })] })), _jsxs("div", { style: { marginBottom: "16px" }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }, children: [_jsxs("h3", { style: { margin: 0, color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }, children: ["Build Jobs ", jobs.length > 0 && `(${jobs.length})`] }), canDecompose && (_jsx(Btn, { variant: "primary", onClick: handleDecompose, disabled: decomposing, children: decomposing ? "Analyzing..." : (jobs.length > 0 ? "Re-Analyze PRD" : "Analyze PRD") }))] }), jobs.length === 0 ? (_jsx(Card, { style: { border: "1px dashed #475569", textAlign: "center", padding: "24px" }, children: _jsx("span", { style: { color: C.textDim }, children: project.prdText
+                                ? 'PRD attached. Click "Analyze PRD" to decompose into build jobs.'
+                                : "Add a PRD first, then analyze it to generate build jobs." }) })) : (_jsx("div", { style: { display: "flex", flexDirection: "column", gap: "6px" }, children: jobs.map((job, i) => (_jsx(EditableJobCard, { job: job, index: i, onSave: (updates) => handleUpdateJob(job.id, updates) }, job.id))) }))] }), totalCost > 0 && (_jsxs(Card, { style: { marginBottom: "16px" }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" }, children: [_jsx(Label, { children: "LLM Cost" }), _jsxs("span", { style: { color: C.success, fontSize: "14px", fontWeight: 600 }, children: ["$", totalCost.toFixed(4)] })] }), _jsx("div", { style: { marginTop: "4px" }, children: usage.map((u, i) => (_jsxs("div", { style: { fontSize: "11px", color: C.textDim }, children: [u.model, " (", u.purpose, ") \u2014 ", u.inputTokens.toLocaleString(), " in / ", u.outputTokens.toLocaleString(), " out \u2014 $", u.estimatedCostUsd.toFixed(4)] }, i))) })] })), _jsx(Card, { style: { border: "1px dashed #475569", marginBottom: "12px" }, children: _jsx("span", { style: { color: C.textDim, fontSize: "13px" }, children: "Pipeline execution \u2014 coming in Phase 3" }) }), _jsx(Card, { style: { border: "1px dashed #475569" }, children: _jsx("span", { style: { color: C.textDim, fontSize: "13px" }, children: "Reviews and cost tracking \u2014 coming in Phase 4" }) })] }));
 }
 // =============================================================================
 // Main Projects View

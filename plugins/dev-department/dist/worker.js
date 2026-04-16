@@ -1,5 +1,6 @@
 import { definePlugin, startWorkerRpcHost } from "@paperclipai/plugin-sdk";
 import * as store from "./worker/state.js";
+import { decomposePrd } from "./worker/prd-decomposer.js";
 const plugin = definePlugin({
     async setup(ctx) {
         ctx.logger.info("project-automation: setting up");
@@ -63,6 +64,80 @@ const plugin = definePlugin({
             await store.deleteProject(ctx.state, parentProjectId, projectId);
             ctx.logger.info("project-automation: deleted project", { projectId });
             return { ok: true };
+        });
+        ctx.actions.register("update-job", async (params) => {
+            const parentProjectId = params.parentProjectId;
+            const projectId = params.projectId;
+            const jobId = params.jobId;
+            const updates = params.updates;
+            if (!parentProjectId || !projectId || !jobId)
+                throw new Error("parentProjectId, projectId, and jobId required");
+            const updated = await store.updateJob(ctx.state, parentProjectId, projectId, jobId, updates);
+            ctx.logger.info("project-automation: updated job", { projectId, jobId });
+            return updated;
+        });
+        // ── Phase 2: PRD Decomposition ──
+        ctx.actions.register("decompose-prd", async (params) => {
+            const parentProjectId = params.parentProjectId;
+            const projectId = params.projectId;
+            if (!parentProjectId || !projectId)
+                throw new Error("parentProjectId and projectId required");
+            const project = await store.getProject(ctx.state, parentProjectId, projectId);
+            if (!project)
+                throw new Error("Project not found: " + projectId);
+            if (!project.prdText)
+                throw new Error("Project has no PRD text");
+            // Update project status
+            await store.updateProject(ctx.state, parentProjectId, projectId, { status: "planning" });
+            // Stream progress to UI
+            const emit = (message) => {
+                ctx.streams.emit("pipeline-progress", {
+                    type: "progress",
+                    projectId,
+                    message,
+                    timestamp: new Date().toISOString(),
+                });
+            };
+            try {
+                emit("Starting PRD decomposition with Opus...");
+                const result = await decomposePrd({ http: ctx.http, secrets: ctx.secrets }, projectId, project.prdText, emit);
+                // Save build jobs
+                await store.setJobs(ctx.state, parentProjectId, projectId, result.jobs);
+                // Save usage record
+                const usageEntry = {
+                    id: crypto.randomUUID(),
+                    projectId,
+                    model: result.usageRecord.model,
+                    purpose: result.usageRecord.purpose,
+                    inputTokens: result.usageRecord.inputTokens,
+                    outputTokens: result.usageRecord.outputTokens,
+                    estimatedCostUsd: result.usageRecord.estimatedCostUsd,
+                    timestamp: new Date().toISOString(),
+                };
+                await store.addUsage(ctx.state, parentProjectId, projectId, usageEntry);
+                // Update project status and summary
+                await store.updateProject(ctx.state, parentProjectId, projectId, {
+                    status: "ready",
+                    decompositionSummary: result.summary,
+                });
+                emit(`Decomposition complete — ${result.jobs.length} build jobs created. Cost: $${usageEntry.estimatedCostUsd.toFixed(4)}`);
+                ctx.logger.info("project-automation: PRD decomposed", {
+                    projectId,
+                    jobCount: result.jobs.length,
+                    cost: usageEntry.estimatedCostUsd,
+                });
+                return {
+                    jobCount: result.jobs.length,
+                    summary: result.summary,
+                    cost: usageEntry.estimatedCostUsd,
+                };
+            }
+            catch (err) {
+                await store.updateProject(ctx.state, parentProjectId, projectId, { status: "failed" });
+                emit(`Decomposition failed: ${err.message}`);
+                ctx.logger.error("project-automation: decomposition failed", { projectId, error: err.message });
+                throw err;
+            }
         });
         ctx.logger.info("project-automation: setup complete");
     },

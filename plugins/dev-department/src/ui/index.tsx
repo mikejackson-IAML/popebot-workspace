@@ -7,6 +7,7 @@ import {
   usePluginData,
   usePluginAction,
   useHostContext,
+  usePluginStream,
 } from "@paperclipai/plugin-sdk/ui";
 
 // =============================================================================
@@ -42,12 +43,29 @@ interface BuildJob {
   completedAt: string | null;
 }
 
+interface LLMUsageRecord {
+  id: string;
+  model: string;
+  purpose: string;
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCostUsd: number;
+  timestamp: string;
+}
+
 interface ProjectDetail {
   project: ManagedProject;
   jobs: BuildJob[];
   pipeline: unknown;
   reviews: unknown[];
-  usage: unknown[];
+  usage: LLMUsageRecord[];
+}
+
+interface PipelineProgressEvent {
+  type: string;
+  projectId: string;
+  message: string;
+  timestamp: string;
 }
 
 // =============================================================================
@@ -300,6 +318,100 @@ function CreateProjectForm({ onSubmit, onCancel }: {
 // Project Detail View
 // =============================================================================
 
+// =============================================================================
+// Editable Job Card
+// =============================================================================
+
+function EditableJobCard({ job, index, onSave }: {
+  job: BuildJob;
+  index: number;
+  onSave: (updates: Partial<BuildJob>) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [editingJob, setEditingJob] = useState(false);
+  const [editName, setEditName] = useState(job.name);
+  const [editDesc, setEditDesc] = useState(job.description);
+  const [editFiles, setEditFiles] = useState(job.targetFiles.join(", "));
+
+  const handleSaveJob = () => {
+    onSave({
+      name: editName,
+      description: editDesc,
+      targetFiles: editFiles.split(",").map((f) => f.trim()).filter(Boolean),
+    });
+    setEditingJob(false);
+  };
+
+  return (
+    <Card style={{ padding: "12px 16px" }}>
+      <div
+        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+        onClick={() => !editingJob && setExpanded(!expanded)}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}>
+          <span style={{ color: C.textDim, fontSize: "13px", fontWeight: 700, minWidth: "24px" }}>#{index + 1}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, color: C.text, fontSize: "14px" }}>{job.name}</div>
+            <div style={{ fontSize: "12px", color: C.textDim, marginTop: "2px" }}>
+              {job.targetFiles.join(", ") || "No target files"}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          {job.dependencies.length > 0 && (
+            <span style={{ fontSize: "11px", color: C.textDim }}>
+              depends: {job.dependencies.join(", ")}
+            </span>
+          )}
+          <Badge label={job.status} />
+          <span style={{ color: C.textDim, fontSize: "12px" }}>{expanded ? "▲" : "▼"}</span>
+        </div>
+      </div>
+
+      {expanded && !editingJob && (
+        <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: `1px solid ${C.border}` }}>
+          <pre style={{
+            color: C.text, fontSize: "12px", lineHeight: "1.5",
+            whiteSpace: "pre-wrap", wordBreak: "break-word", margin: "0 0 8px 0",
+          }}>
+            {job.description}
+          </pre>
+          {job.status === "pending" && (
+            <Btn variant="ghost" onClick={(e: any) => { e.stopPropagation(); setEditingJob(true); }} style={{ fontSize: "12px", padding: "4px 10px" }}>
+              Edit Job
+            </Btn>
+          )}
+        </div>
+      )}
+
+      {editingJob && (
+        <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: `1px solid ${C.border}`, display: "grid", gap: "8px" }}>
+          <div>
+            <Label>Job Name</Label>
+            <Input value={editName} onChange={setEditName} />
+          </div>
+          <div>
+            <Label>Description</Label>
+            <TextArea value={editDesc} onChange={setEditDesc} rows={4} />
+          </div>
+          <div>
+            <Label>Target Files (comma-separated)</Label>
+            <Input value={editFiles} onChange={setEditFiles} placeholder="src/foo.ts, src/bar.ts" />
+          </div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <Btn variant="primary" onClick={handleSaveJob} style={{ fontSize: "12px", padding: "4px 10px" }}>Save</Btn>
+            <Btn variant="ghost" onClick={() => setEditingJob(false)} style={{ fontSize: "12px", padding: "4px 10px" }}>Cancel</Btn>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// =============================================================================
+// Project Detail View
+// =============================================================================
+
 function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   projectId: string;
   parentProjectId: string;
@@ -312,18 +424,26 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
 
   const updateProject = usePluginAction("update-project");
   const deleteProjectAction = usePluginAction("delete-project");
+  const decomposePrdAction = usePluginAction("decompose-prd");
+  const updateJobAction = usePluginAction("update-job");
+
+  const { events: progressEvents } = usePluginStream<PipelineProgressEvent>("pipeline-progress");
 
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editPrd, setEditPrd] = useState("");
   const [editPriority, setEditPriority] = useState<ProjectPriority>("P2");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [decomposing, setDecomposing] = useState(false);
 
   if (loading) return <div style={{ padding: "24px", color: C.textMuted }}>Loading...</div>;
   if (error) return <ErrorBanner message={error.message} />;
   if (!data) return <ErrorBanner message="Project not found" />;
 
-  const { project, jobs } = data;
+  const { project, jobs, usage } = data;
+
+  // Filter progress events for this project
+  const myProgress = progressEvents.filter((e) => e.projectId === projectId);
 
   const startEditing = () => {
     setEditName(project.name);
@@ -356,6 +476,34 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
       setActionError(err.message || "Failed to delete");
     }
   };
+
+  const handleDecompose = async () => {
+    try {
+      setActionError(null);
+      setDecomposing(true);
+      await decomposePrdAction({ parentProjectId, projectId });
+      refresh();
+    } catch (err: any) {
+      setActionError(err.message || "Decomposition failed");
+    } finally {
+      setDecomposing(false);
+    }
+  };
+
+  const handleUpdateJob = async (jobId: string, updates: Partial<BuildJob>) => {
+    try {
+      setActionError(null);
+      await updateJobAction({ parentProjectId, projectId, jobId, updates });
+      refresh();
+    } catch (err: any) {
+      setActionError(err.message || "Failed to update job");
+    }
+  };
+
+  // Calculate total cost
+  const totalCost = (usage as LLMUsageRecord[]).reduce((sum, u) => sum + u.estimatedCostUsd, 0);
+
+  const canDecompose = project.prdText && (project.status === "draft" || project.status === "failed");
 
   return (
     <div>
@@ -432,6 +580,16 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
             <Btn onClick={handleDelete} variant="danger">Delete</Btn>
           </div>
 
+          {/* Decomposition Summary */}
+          {project.decompositionSummary && (
+            <Card>
+              <Label>Decomposition Summary</Label>
+              <p style={{ color: C.text, fontSize: "13px", lineHeight: "1.5", margin: 0 }}>
+                {project.decompositionSummary}
+              </p>
+            </Card>
+          )}
+
           {/* PRD Display */}
           {project.prdText ? (
             <Card>
@@ -452,15 +610,35 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
         </div>
       )}
 
+      {/* Streaming Progress */}
+      {(decomposing || myProgress.length > 0) && (
+        <Card style={{ marginBottom: "16px", borderColor: C.accent }}>
+          <Label>Progress</Label>
+          <div style={{ maxHeight: "150px", overflow: "auto" }}>
+            {myProgress.map((evt, i) => (
+              <div key={i} style={{ fontSize: "12px", color: C.textMuted, padding: "2px 0", fontFamily: "monospace" }}>
+                <span style={{ color: C.textDim, marginRight: "8px" }}>
+                  {new Date(evt.timestamp).toLocaleTimeString()}
+                </span>
+                {evt.message}
+              </div>
+            ))}
+            {decomposing && myProgress.length === 0 && (
+              <div style={{ fontSize: "12px", color: C.accent }}>Starting decomposition...</div>
+            )}
+          </div>
+        </Card>
+      )}
+
       {/* Build Jobs Section */}
       <div style={{ marginBottom: "16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
           <h3 style={{ margin: 0, color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            Build Jobs
+            Build Jobs {jobs.length > 0 && `(${jobs.length})`}
           </h3>
-          {project.prdText && project.status === "draft" && (
-            <Btn variant="primary" onClick={() => { /* Phase 2: decompose PRD */ }} disabled>
-              Analyze PRD (coming soon)
+          {canDecompose && (
+            <Btn variant="primary" onClick={handleDecompose} disabled={decomposing}>
+              {decomposing ? "Analyzing..." : (jobs.length > 0 ? "Re-Analyze PRD" : "Analyze PRD")}
             </Btn>
           )}
         </div>
@@ -468,29 +646,42 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
           <Card style={{ border: "1px dashed #475569", textAlign: "center", padding: "24px" }}>
             <span style={{ color: C.textDim }}>
               {project.prdText
-                ? "PRD attached. Click \"Analyze PRD\" to decompose into build jobs."
+                ? 'PRD attached. Click "Analyze PRD" to decompose into build jobs.'
                 : "Add a PRD first, then analyze it to generate build jobs."}
             </span>
           </Card>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
             {jobs.map((job, i) => (
-              <Card key={job.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  <span style={{ color: C.textDim, fontSize: "13px", fontWeight: 700, minWidth: "24px" }}>#{i + 1}</span>
-                  <div>
-                    <div style={{ fontWeight: 600, color: C.text, fontSize: "14px" }}>{job.name}</div>
-                    <div style={{ fontSize: "12px", color: C.textDim, marginTop: "2px" }}>
-                      {job.targetFiles.join(", ") || "No target files"}
-                    </div>
-                  </div>
-                </div>
-                <Badge label={job.status} />
-              </Card>
+              <EditableJobCard
+                key={job.id}
+                job={job}
+                index={i}
+                onSave={(updates) => handleUpdateJob(job.id, updates)}
+              />
             ))}
           </div>
         )}
       </div>
+
+      {/* Cost Tracking */}
+      {totalCost > 0 && (
+        <Card style={{ marginBottom: "16px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <Label>LLM Cost</Label>
+            <span style={{ color: C.success, fontSize: "14px", fontWeight: 600 }}>
+              ${totalCost.toFixed(4)}
+            </span>
+          </div>
+          <div style={{ marginTop: "4px" }}>
+            {(usage as LLMUsageRecord[]).map((u, i) => (
+              <div key={i} style={{ fontSize: "11px", color: C.textDim }}>
+                {u.model} ({u.purpose}) — {u.inputTokens.toLocaleString()} in / {u.outputTokens.toLocaleString()} out — ${u.estimatedCostUsd.toFixed(4)}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* Pipeline section placeholder */}
       <Card style={{ border: "1px dashed #475569", marginBottom: "12px" }}>
