@@ -1,5 +1,5 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { usePluginData, usePluginAction, useHostContext, } from "@paperclipai/plugin-sdk/ui";
 // =============================================================================
 // Theme
@@ -270,20 +270,6 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     const totalCost = usage.reduce((sum, u) => sum + u.estimatedCostUsd, 0);
     const canDecompose = project.prdText && (project.status === "draft" || project.status === "failed");
     const isPlanning = project.status === "planning";
-    // Poll while planning, stop when done
-    useEffect(() => {
-        if (!isPlanning) {
-            return;
-        }
-        const id = setInterval(() => { refresh(); }, 8000);
-        return () => clearInterval(id);
-    }, [isPlanning]);
-    // Clear decomposing flag when project leaves planning
-    useEffect(() => {
-        if (!isPlanning && decomposing) {
-            setDecomposing(false);
-        }
-    }, [isPlanning]);
     return (_jsxs("div", { children: [actionError && _jsx(ErrorBanner, { message: actionError }), showApiKeyConfig && (_jsxs(Card, { style: { marginBottom: "16px", borderColor: C.accent }, children: [_jsx("h4", { style: { margin: "0 0 8px 0", color: C.text, fontSize: "14px" }, children: "Anthropic API Key" }), _jsx("p", { style: { color: C.textMuted, fontSize: "12px", margin: "0 0 8px 0" }, children: "Enter your API key from console.anthropic.com. Used for Opus PRD decomposition." }), _jsxs("div", { style: { display: "flex", gap: "8px", alignItems: "center" }, children: [_jsx("input", { type: "password", value: apiKeyInput, onChange: (e) => setApiKeyInput(e.target.value), placeholder: "sk-ant-...", style: {
                                     flex: 1, padding: "10px 12px", backgroundColor: C.bgInput, color: C.text,
                                     border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box",

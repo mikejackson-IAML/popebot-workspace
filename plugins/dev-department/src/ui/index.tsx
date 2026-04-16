@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type {
   PluginProjectSidebarItemProps,
   PluginDetailTabProps,
@@ -535,22 +535,6 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
 
   const canDecompose = project.prdText && (project.status === "draft" || project.status === "failed");
   const isPlanning = project.status === "planning";
-
-  // Poll while planning, stop when done
-  useEffect(() => {
-    if (!isPlanning) {
-      return;
-    }
-    const id = setInterval(() => { refresh(); }, 8000);
-    return () => clearInterval(id);
-  }, [isPlanning]);
-
-  // Clear decomposing flag when project leaves planning
-  useEffect(() => {
-    if (!isPlanning && decomposing) {
-      setDecomposing(false);
-    }
-  }, [isPlanning]);
 
   return (
     <div>
