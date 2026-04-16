@@ -1,0 +1,4 @@
+{
+  "title": "Refactor RTX router to use template system with trace capture",
+  "job": "Update RTX router to use the template system instead of hardcoded prompts. Add template selection logic and ensure template usage is captured in traces."
+}
