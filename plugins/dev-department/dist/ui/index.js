@@ -234,12 +234,13 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
             setActionError(null);
             setDecomposing(true);
             await decomposePrdAction({ parentProjectId, projectId });
-            refresh();
+            // Action returns immediately — decomposition runs in background.
+            // Stream events will show progress. Poll for completion via refresh.
+            const poll = setInterval(() => { refresh(); }, 5000);
+            setTimeout(() => clearInterval(poll), 300000); // stop polling after 5 min
         }
         catch (err) {
             setActionError(err.message || "Decomposition failed");
-        }
-        finally {
             setDecomposing(false);
         }
     };
@@ -268,6 +269,11 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     // Calculate total cost
     const totalCost = usage.reduce((sum, u) => sum + u.estimatedCostUsd, 0);
     const canDecompose = project.prdText && (project.status === "draft" || project.status === "failed");
+    const isPlanning = project.status === "planning";
+    // Auto-clear decomposing state when project moves past "planning"
+    if (decomposing && !isPlanning && project.status !== "draft") {
+        setDecomposing(false);
+    }
     return (_jsxs("div", { children: [actionError && _jsx(ErrorBanner, { message: actionError }), showApiKeyConfig && (_jsxs(Card, { style: { marginBottom: "16px", borderColor: C.accent }, children: [_jsx("h4", { style: { margin: "0 0 8px 0", color: C.text, fontSize: "14px" }, children: "Anthropic API Key" }), _jsx("p", { style: { color: C.textMuted, fontSize: "12px", margin: "0 0 8px 0" }, children: "Enter your API key from console.anthropic.com. Used for Opus PRD decomposition." }), _jsxs("div", { style: { display: "flex", gap: "8px", alignItems: "center" }, children: [_jsx("input", { type: "password", value: apiKeyInput, onChange: (e) => setApiKeyInput(e.target.value), placeholder: "sk-ant-...", style: {
                                     flex: 1, padding: "10px 12px", backgroundColor: C.bgInput, color: C.text,
                                     border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box",

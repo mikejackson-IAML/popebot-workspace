@@ -501,10 +501,12 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
       setActionError(null);
       setDecomposing(true);
       await decomposePrdAction({ parentProjectId, projectId });
-      refresh();
+      // Action returns immediately — decomposition runs in background.
+      // Stream events will show progress. Poll for completion via refresh.
+      const poll = setInterval(() => { refresh(); }, 5000);
+      setTimeout(() => clearInterval(poll), 300000); // stop polling after 5 min
     } catch (err: any) {
       setActionError(err.message || "Decomposition failed");
-    } finally {
       setDecomposing(false);
     }
   };
@@ -535,6 +537,12 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const totalCost = (usage as LLMUsageRecord[]).reduce((sum, u) => sum + u.estimatedCostUsd, 0);
 
   const canDecompose = project.prdText && (project.status === "draft" || project.status === "failed");
+  const isPlanning = project.status === "planning";
+
+  // Auto-clear decomposing state when project moves past "planning"
+  if (decomposing && !isPlanning && project.status !== "draft") {
+    setDecomposing(false);
+  }
 
   return (
     <div>

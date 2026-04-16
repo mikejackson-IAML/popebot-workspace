@@ -101,6 +101,13 @@ const plugin = definePlugin({
                 throw new Error("Project not found: " + projectId);
             if (!project.prdText)
                 throw new Error("Project has no PRD text");
+            // Read API key before going async
+            const apiKeyConfig = await ctx.state.get({
+                scopeKind: "instance", stateKey: "anthropic-api-key", namespace: "automation",
+            });
+            if (!apiKeyConfig?.key) {
+                throw new Error("Anthropic API key not configured. Click the gear icon on Build Jobs to set it.");
+            }
             // Update project status
             await store.updateProject(ctx.state, parentProjectId, projectId, { status: "planning" });
             // Stream progress to UI
@@ -112,53 +119,49 @@ const plugin = definePlugin({
                     timestamp: new Date().toISOString(),
                 });
             };
-            try {
-                // Read API key from plugin state
-                const apiKeyConfig = await ctx.state.get({
-                    scopeKind: "instance", stateKey: "anthropic-api-key", namespace: "automation",
-                });
-                if (!apiKeyConfig?.key) {
-                    throw new Error("Anthropic API key not configured. Click the gear icon on Build Jobs to set it.");
+            emit("Starting PRD decomposition with Opus...");
+            // Fire-and-forget: run decomposition in background so the action
+            // returns immediately (avoids Paperclip's 30s RPC timeout).
+            // Progress and results are streamed/saved via state + events.
+            const prdText = project.prdText;
+            const apiKey = apiKeyConfig.key;
+            (async () => {
+                try {
+                    const result = await decomposePrd({ http: ctx.http, apiKey }, projectId, prdText, emit);
+                    // Save build jobs
+                    await store.setJobs(ctx.state, parentProjectId, projectId, result.jobs);
+                    // Save usage record
+                    const usageEntry = {
+                        id: crypto.randomUUID(),
+                        projectId,
+                        model: result.usageRecord.model,
+                        purpose: result.usageRecord.purpose,
+                        inputTokens: result.usageRecord.inputTokens,
+                        outputTokens: result.usageRecord.outputTokens,
+                        estimatedCostUsd: result.usageRecord.estimatedCostUsd,
+                        timestamp: new Date().toISOString(),
+                    };
+                    await store.addUsage(ctx.state, parentProjectId, projectId, usageEntry);
+                    // Update project status and summary
+                    await store.updateProject(ctx.state, parentProjectId, projectId, {
+                        status: "ready",
+                        decompositionSummary: result.summary,
+                    });
+                    emit(`Decomposition complete — ${result.jobs.length} build jobs created. Cost: $${usageEntry.estimatedCostUsd.toFixed(4)}`);
+                    ctx.logger.info("project-automation: PRD decomposed", {
+                        projectId,
+                        jobCount: result.jobs.length,
+                        cost: usageEntry.estimatedCostUsd,
+                    });
                 }
-                emit("Starting PRD decomposition with Opus...");
-                const result = await decomposePrd({ http: ctx.http, apiKey: apiKeyConfig.key }, projectId, project.prdText, emit);
-                // Save build jobs
-                await store.setJobs(ctx.state, parentProjectId, projectId, result.jobs);
-                // Save usage record
-                const usageEntry = {
-                    id: crypto.randomUUID(),
-                    projectId,
-                    model: result.usageRecord.model,
-                    purpose: result.usageRecord.purpose,
-                    inputTokens: result.usageRecord.inputTokens,
-                    outputTokens: result.usageRecord.outputTokens,
-                    estimatedCostUsd: result.usageRecord.estimatedCostUsd,
-                    timestamp: new Date().toISOString(),
-                };
-                await store.addUsage(ctx.state, parentProjectId, projectId, usageEntry);
-                // Update project status and summary
-                await store.updateProject(ctx.state, parentProjectId, projectId, {
-                    status: "ready",
-                    decompositionSummary: result.summary,
-                });
-                emit(`Decomposition complete — ${result.jobs.length} build jobs created. Cost: $${usageEntry.estimatedCostUsd.toFixed(4)}`);
-                ctx.logger.info("project-automation: PRD decomposed", {
-                    projectId,
-                    jobCount: result.jobs.length,
-                    cost: usageEntry.estimatedCostUsd,
-                });
-                return {
-                    jobCount: result.jobs.length,
-                    summary: result.summary,
-                    cost: usageEntry.estimatedCostUsd,
-                };
-            }
-            catch (err) {
-                await store.updateProject(ctx.state, parentProjectId, projectId, { status: "failed" });
-                emit(`Decomposition failed: ${err.message}`);
-                ctx.logger.error("project-automation: decomposition failed", { projectId, error: err.message });
-                throw err;
-            }
+                catch (err) {
+                    await store.updateProject(ctx.state, parentProjectId, projectId, { status: "failed" });
+                    emit(`Decomposition failed: ${err.message}`);
+                    ctx.logger.error("project-automation: decomposition failed", { projectId, error: err.message });
+                }
+            })();
+            // Return immediately — UI will see progress via stream and refresh for results
+            return { started: true, projectId };
         });
         ctx.logger.info("project-automation: setup complete");
     },
