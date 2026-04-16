@@ -1,4 +1,4 @@
-import { definePlugin, runWorker } from "@paperclipai/plugin-sdk";
+import { definePlugin, startWorkerRpcHost } from "@paperclipai/plugin-sdk";
 import * as store from "./worker/state.js";
 const plugin = definePlugin({
     async setup(ctx) {
@@ -71,5 +71,7 @@ const plugin = definePlugin({
     },
 });
 export default plugin;
-runWorker(plugin, import.meta.url);
+// Use startWorkerRpcHost directly — runWorker's main-module check
+// fails when Paperclip loads the worker via its own bootstrap process
+startWorkerRpcHost({ plugin });
 //# sourceMappingURL=worker.js.map
