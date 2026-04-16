@@ -1,0 +1,4 @@
+{
+  "title": "Build trace replay system with strategy comparison and diff generation",
+  "job": "Implement trace replay system that can recreate past executions with different strategies, templates, or configurations. Include replay result comparison and diff generation."
+}
