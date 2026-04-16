@@ -1,4 +1,0 @@
-{
-  "title": "Refactor RTX router to use strategy interface with tenant-based selection",
-  "job": "Update RTX router to use the strategy interface instead of hardcoded retrieval logic. Add strategy selection based on tenant configuration and trace strategy usage."
-}
