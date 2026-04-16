@@ -80,7 +80,7 @@ function validate(parsed) {
 export async function decomposePrd(deps, projectId, prdText, onProgress) {
     onProgress?.("Sending PRD to Opus for decomposition...");
     const { response, usageRecord } = await callLLM(deps, {
-        model: "opus",
+        model: "sonnet",
         purpose: "prd_decomposition",
         system: SYSTEM_PROMPT,
         messages: [

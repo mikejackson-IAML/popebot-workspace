@@ -123,7 +123,7 @@ export async function decomposePrd(
   onProgress?.("Sending PRD to Opus for decomposition...");
 
   const { response, usageRecord } = await callLLM(deps, {
-    model: "opus",
+    model: "sonnet",
     purpose: "prd_decomposition",
     system: SYSTEM_PROMPT,
     messages: [
