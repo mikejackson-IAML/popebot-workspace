@@ -1,0 +1,4 @@
+{
+  "title": "Design and implement abstract retrieval strategy interface with concrete methods",
+  "job": "Define an abstract retrieval strategy interface and implement concrete strategies for different retrieval methods. Include strategy registration, configuration, and execution tracking."
+}
