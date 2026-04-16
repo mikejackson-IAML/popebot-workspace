@@ -1,5 +1,5 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePluginData, usePluginAction, useHostContext, usePluginStream, } from "@paperclipai/plugin-sdk/ui";
 // =============================================================================
 // Theme
@@ -183,6 +183,7 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     const [decomposing, setDecomposing] = useState(false);
     const [showApiKeyConfig, setShowApiKeyConfig] = useState(false);
     const [apiKeyInput, setApiKeyInput] = useState("");
+    const pollRef = useRef(null);
     if (loading)
         return _jsx("div", { style: { padding: "24px", color: C.textMuted }, children: "Loading..." });
     if (error)
@@ -235,9 +236,7 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
             setDecomposing(true);
             await decomposePrdAction({ parentProjectId, projectId });
             // Action returns immediately — decomposition runs in background.
-            // Stream events will show progress. Poll for completion via refresh.
-            const poll = setInterval(() => { refresh(); }, 5000);
-            setTimeout(() => clearInterval(poll), 300000); // stop polling after 5 min
+            // Polling is handled by useEffect below.
         }
         catch (err) {
             setActionError(err.message || "Decomposition failed");
@@ -270,10 +269,28 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     const totalCost = usage.reduce((sum, u) => sum + u.estimatedCostUsd, 0);
     const canDecompose = project.prdText && (project.status === "draft" || project.status === "failed");
     const isPlanning = project.status === "planning";
-    // Auto-clear decomposing state when project moves past "planning"
-    if (decomposing && !isPlanning && project.status !== "draft") {
-        setDecomposing(false);
-    }
+    // Poll only while decomposing/planning — single refresh when done
+    useEffect(() => {
+        if (isPlanning || decomposing) {
+            if (!pollRef.current) {
+                pollRef.current = setInterval(() => { refresh(); }, 8000);
+            }
+        }
+        else {
+            if (pollRef.current) {
+                clearInterval(pollRef.current);
+                pollRef.current = null;
+            }
+            if (decomposing)
+                setDecomposing(false);
+        }
+        return () => {
+            if (pollRef.current) {
+                clearInterval(pollRef.current);
+                pollRef.current = null;
+            }
+        };
+    }, [isPlanning, decomposing]);
     return (_jsxs("div", { children: [actionError && _jsx(ErrorBanner, { message: actionError }), showApiKeyConfig && (_jsxs(Card, { style: { marginBottom: "16px", borderColor: C.accent }, children: [_jsx("h4", { style: { margin: "0 0 8px 0", color: C.text, fontSize: "14px" }, children: "Anthropic API Key" }), _jsx("p", { style: { color: C.textMuted, fontSize: "12px", margin: "0 0 8px 0" }, children: "Enter your API key from console.anthropic.com. Used for Opus PRD decomposition." }), _jsxs("div", { style: { display: "flex", gap: "8px", alignItems: "center" }, children: [_jsx("input", { type: "password", value: apiKeyInput, onChange: (e) => setApiKeyInput(e.target.value), placeholder: "sk-ant-...", style: {
                                     flex: 1, padding: "10px 12px", backgroundColor: C.bgInput, color: C.text,
                                     border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box",

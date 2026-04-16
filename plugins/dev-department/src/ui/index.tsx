@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type {
   PluginProjectSidebarItemProps,
   PluginDetailTabProps,
@@ -449,6 +449,7 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const [decomposing, setDecomposing] = useState(false);
   const [showApiKeyConfig, setShowApiKeyConfig] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState("");
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   if (loading) return <div style={{ padding: "24px", color: C.textMuted }}>Loading...</div>;
   if (error) return <ErrorBanner message={error.message} />;
@@ -502,9 +503,7 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
       setDecomposing(true);
       await decomposePrdAction({ parentProjectId, projectId });
       // Action returns immediately — decomposition runs in background.
-      // Stream events will show progress. Poll for completion via refresh.
-      const poll = setInterval(() => { refresh(); }, 5000);
-      setTimeout(() => clearInterval(poll), 300000); // stop polling after 5 min
+      // Polling is handled by useEffect below.
     } catch (err: any) {
       setActionError(err.message || "Decomposition failed");
       setDecomposing(false);
@@ -539,10 +538,26 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const canDecompose = project.prdText && (project.status === "draft" || project.status === "failed");
   const isPlanning = project.status === "planning";
 
-  // Auto-clear decomposing state when project moves past "planning"
-  if (decomposing && !isPlanning && project.status !== "draft") {
-    setDecomposing(false);
-  }
+  // Poll only while decomposing/planning — single refresh when done
+  useEffect(() => {
+    if (isPlanning || decomposing) {
+      if (!pollRef.current) {
+        pollRef.current = setInterval(() => { refresh(); }, 8000);
+      }
+    } else {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+      if (decomposing) setDecomposing(false);
+    }
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, [isPlanning, decomposing]);
 
   return (
     <div>
