@@ -1,0 +1,4 @@
+{
+  "title": "Build trace storage service with write, query, and integrity features",
+  "job": "Implement a trace storage service that can capture, store, and retrieve execution traces. Include methods for writing traces, querying by tenant/time/type, and maintaining trace integrity with proper indexing."
+}
