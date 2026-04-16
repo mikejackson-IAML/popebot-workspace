@@ -1,7 +1,7 @@
 // =============================================================================
 // LLM Client — Claude API wrapper using Paperclip SDK
 // =============================================================================
-import type { PluginHttpClient, PluginSecretsClient } from "@paperclipai/plugin-sdk";
+import type { PluginHttpClient } from "@paperclipai/plugin-sdk";
 import type { LLMModel, LLMPurpose, LLMUsage } from "./types.js";
 
 // Model ID mapping
@@ -39,7 +39,7 @@ export interface LLMResponse {
 
 export interface LLMClientDeps {
   http: PluginHttpClient;
-  secrets: PluginSecretsClient;
+  apiKey: string;
 }
 
 const API_URL = "https://api.anthropic.com/v1/messages";
@@ -48,7 +48,8 @@ export async function callLLM(
   deps: LLMClientDeps,
   request: LLMRequest
 ): Promise<{ response: LLMResponse; usageRecord: Omit<LLMUsage, "id" | "projectId" | "timestamp"> }> {
-  const apiKey = await deps.secrets.resolve("ANTHROPIC_API_KEY");
+  const apiKey = deps.apiKey;
+  if (!apiKey) throw new Error("Anthropic API key not configured. Go to project detail → gear icon → enter your key.");
   const modelId = MODEL_IDS[request.model];
   if (!modelId) throw new Error(`Unknown model: ${request.model}`);
 

@@ -14,7 +14,6 @@ const manifest: PaperclipPluginManifestV1 = {
     "ui.sidebar.register",
     "ui.detailTab.register",
     "http.outbound",
-    "secrets.read-ref",
     "projects.read",
     "activity.log.write",
   ],

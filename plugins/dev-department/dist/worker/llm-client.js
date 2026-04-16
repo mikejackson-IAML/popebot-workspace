@@ -12,7 +12,9 @@ const COST_PER_M_TOKENS = {
 };
 const API_URL = "https://api.anthropic.com/v1/messages";
 export async function callLLM(deps, request) {
-    const apiKey = await deps.secrets.resolve("ANTHROPIC_API_KEY");
+    const apiKey = deps.apiKey;
+    if (!apiKey)
+        throw new Error("Anthropic API key not configured. Go to project detail → gear icon → enter your key.");
     const modelId = MODEL_IDS[request.model];
     if (!modelId)
         throw new Error(`Unknown model: ${request.model}`);

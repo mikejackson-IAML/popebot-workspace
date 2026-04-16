@@ -12,7 +12,6 @@ const manifest = {
         "ui.sidebar.register",
         "ui.detailTab.register",
         "http.outbound",
-        "secrets.read-ref",
         "projects.read",
         "activity.log.write",
     ],

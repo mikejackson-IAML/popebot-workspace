@@ -436,7 +436,9 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const deleteProjectAction = usePluginAction("delete-project");
   const decomposePrdAction = usePluginAction("decompose-prd");
   const updateJobAction = usePluginAction("update-job");
+  const saveApiKeyAction = usePluginAction("save-api-key");
 
+  const { data: apiKeyStatus, refresh: refreshApiKey } = usePluginData<{ configured: boolean }>("api-key-status", {});
   const { events: progressEvents } = usePluginStream<PipelineProgressEvent>("pipeline-progress");
 
   const [editing, setEditing] = useState(false);
@@ -445,6 +447,8 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const [editPriority, setEditPriority] = useState<ProjectPriority>("P2");
   const [actionError, setActionError] = useState<string | null>(null);
   const [decomposing, setDecomposing] = useState(false);
+  const [showApiKeyConfig, setShowApiKeyConfig] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState("");
 
   if (loading) return <div style={{ padding: "24px", color: C.textMuted }}>Loading...</div>;
   if (error) return <ErrorBanner message={error.message} />;
@@ -488,6 +492,11 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   };
 
   const handleDecompose = async () => {
+    if (!apiKeyStatus?.configured) {
+      setShowApiKeyConfig(true);
+      setActionError("Configure your Anthropic API key first.");
+      return;
+    }
     try {
       setActionError(null);
       setDecomposing(true);
@@ -497,6 +506,18 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
       setActionError(err.message || "Decomposition failed");
     } finally {
       setDecomposing(false);
+    }
+  };
+
+  const handleSaveApiKey = async () => {
+    try {
+      await saveApiKeyAction({ apiKey: apiKeyInput });
+      setShowApiKeyConfig(false);
+      setApiKeyInput("");
+      setActionError(null);
+      refreshApiKey();
+    } catch (err: any) {
+      setActionError(err.message || "Failed to save API key");
     }
   };
 
@@ -518,6 +539,33 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   return (
     <div>
       {actionError && <ErrorBanner message={actionError} />}
+
+      {/* API Key Config Panel */}
+      {showApiKeyConfig && (
+        <Card style={{ marginBottom: "16px", borderColor: C.accent }}>
+          <h4 style={{ margin: "0 0 8px 0", color: C.text, fontSize: "14px" }}>Anthropic API Key</h4>
+          <p style={{ color: C.textMuted, fontSize: "12px", margin: "0 0 8px 0" }}>
+            Enter your API key from console.anthropic.com. Used for Opus PRD decomposition.
+          </p>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <input
+              type="password"
+              value={apiKeyInput}
+              onChange={(e) => setApiKeyInput(e.target.value)}
+              placeholder="sk-ant-..."
+              style={{
+                flex: 1, padding: "10px 12px", backgroundColor: C.bgInput, color: C.text,
+                border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "14px", boxSizing: "border-box",
+              }}
+            />
+            <Btn variant="primary" onClick={handleSaveApiKey} disabled={!apiKeyInput.trim()}>Save</Btn>
+            <Btn variant="ghost" onClick={() => setShowApiKeyConfig(false)}>Cancel</Btn>
+          </div>
+          {apiKeyStatus?.configured && (
+            <div style={{ marginTop: "6px", fontSize: "11px", color: C.success }}>Key already configured. Enter a new one to replace it.</div>
+          )}
+        </Card>
+      )}
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
@@ -646,11 +694,16 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
           <h3 style={{ margin: 0, color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
             Build Jobs {jobs.length > 0 && `(${jobs.length})`}
           </h3>
-          {canDecompose && (
-            <Btn variant="primary" onClick={handleDecompose} disabled={decomposing}>
-              {decomposing ? "Analyzing..." : (jobs.length > 0 ? "Re-Analyze PRD" : "Analyze PRD")}
+          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+            {canDecompose && (
+              <Btn variant="primary" onClick={handleDecompose} disabled={decomposing}>
+                {decomposing ? "Analyzing..." : (jobs.length > 0 ? "Re-Analyze PRD" : "Analyze PRD")}
+              </Btn>
+            )}
+            <Btn variant="ghost" onClick={() => setShowApiKeyConfig(true)} style={{ fontSize: "12px", padding: "6px 8px" }}>
+              &#9881;
             </Btn>
-          )}
+          </div>
         </div>
         {jobs.length === 0 ? (
           <Card style={{ border: "1px dashed #475569", textAlign: "center", padding: "24px" }}>

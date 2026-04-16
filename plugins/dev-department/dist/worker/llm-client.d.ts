@@ -1,4 +1,4 @@
-import type { PluginHttpClient, PluginSecretsClient } from "@paperclipai/plugin-sdk";
+import type { PluginHttpClient } from "@paperclipai/plugin-sdk";
 import type { LLMModel, LLMPurpose, LLMUsage } from "./types.js";
 export interface LLMRequest {
     model: LLMModel;
@@ -22,7 +22,7 @@ export interface LLMResponse {
 }
 export interface LLMClientDeps {
     http: PluginHttpClient;
-    secrets: PluginSecretsClient;
+    apiKey: string;
 }
 export declare function callLLM(deps: LLMClientDeps, request: LLMRequest): Promise<{
     response: LLMResponse;

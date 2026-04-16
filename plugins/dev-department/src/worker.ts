@@ -88,6 +88,24 @@ const plugin = definePlugin({
       return updated;
     });
 
+    ctx.data.register("api-key-status", async () => {
+      const config = await ctx.state.get({
+        scopeKind: "instance", stateKey: "anthropic-api-key", namespace: "automation",
+      }) as { key: string } | null;
+      return { configured: !!config?.key };
+    });
+
+    ctx.actions.register("save-api-key", async (params) => {
+      const apiKey = params.apiKey as string;
+      if (!apiKey?.trim()) throw new Error("API key required");
+      await ctx.state.set(
+        { scopeKind: "instance", stateKey: "anthropic-api-key", namespace: "automation" },
+        { key: apiKey.trim() },
+      );
+      ctx.logger.info("project-automation: API key saved");
+      return { ok: true };
+    });
+
     // ── Phase 2: PRD Decomposition (Opus via Anthropic API) ──
 
     ctx.actions.register("decompose-prd", async (params) => {
@@ -114,10 +132,18 @@ const plugin = definePlugin({
       };
 
       try {
+        // Read API key from plugin state
+        const apiKeyConfig = await ctx.state.get({
+          scopeKind: "instance", stateKey: "anthropic-api-key", namespace: "automation",
+        }) as { key: string } | null;
+        if (!apiKeyConfig?.key) {
+          throw new Error("Anthropic API key not configured. Click the gear icon on Build Jobs to set it.");
+        }
+
         emit("Starting PRD decomposition with Opus...");
 
         const result = await decomposePrd(
-          { http: ctx.http, secrets: ctx.secrets },
+          { http: ctx.http, apiKey: apiKeyConfig.key },
           projectId,
           project.prdText,
           emit,
