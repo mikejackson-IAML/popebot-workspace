@@ -1,4 +1,0 @@
-{
-  "title": "Build output validation and memory write gating system with quality scoring",
-  "job": "Implement output validation and memory write gating system. Include quality scoring, validation rules, and the ability to block or approve memory writes based on validation results."
-}
