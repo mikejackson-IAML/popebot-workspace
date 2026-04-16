@@ -185,7 +185,6 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     const { data, loading, error, refresh } = usePluginData("project-detail", {
         parentProjectId,
         projectId,
-        _tick: pollTick,
     });
     const updateProject = usePluginAction("update-project");
     const deleteProjectAction = usePluginAction("delete-project");
