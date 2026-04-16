@@ -29,6 +29,8 @@ interface ManagedProject {
   updatedAt: string;
 }
 
+type BuildJobType = "code" | "workflow" | "config" | "schema";
+
 interface BuildJob {
   id: string;
   projectId: string;
@@ -36,6 +38,7 @@ interface BuildJob {
   description: string;
   targetFiles: string[];
   dependencies: string[];
+  jobType: BuildJobType;
   status: string;
   popebotJobId: string | null;
   prUrl: string | null;
@@ -363,6 +366,13 @@ function EditableJobCard({ job, index, onSave }: {
               depends: {job.dependencies.join(", ")}
             </span>
           )}
+          {job.jobType && job.jobType !== "code" && (
+            <Badge label={job.jobType} colors={{
+              workflow: { bg: "#4c1d95", text: "#c4b5fd" },
+              config: { bg: "#713f12", text: "#fde68a" },
+              schema: { bg: "#164e63", text: "#67e8f9" },
+            }} />
+          )}
           <Badge label={job.status} />
           <span style={{ color: C.textDim, fontSize: "12px" }}>{expanded ? "▲" : "▼"}</span>
         </div>
@@ -412,9 +422,10 @@ function EditableJobCard({ job, index, onSave }: {
 // Project Detail View
 // =============================================================================
 
-function ProjectDetailView({ projectId, parentProjectId, onBack }: {
+function ProjectDetailView({ projectId, parentProjectId, companyId, onBack }: {
   projectId: string;
   parentProjectId: string;
+  companyId: string;
   onBack: () => void;
 }) {
   const { data, loading, error, refresh } = usePluginData<ProjectDetail>("project-detail", {
@@ -429,12 +440,21 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
 
   const { events: progressEvents } = usePluginStream<PipelineProgressEvent>("pipeline-progress");
 
+  // Agent config — stored per Paperclip project
+  const { data: agentConfig } = usePluginData<{ decomposerAgentId: string | null }>("agent-config", {
+    parentProjectId,
+  });
+
+  const saveAgentConfig = usePluginAction("save-agent-config");
+
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editPrd, setEditPrd] = useState("");
   const [editPriority, setEditPriority] = useState<ProjectPriority>("P2");
   const [actionError, setActionError] = useState<string | null>(null);
   const [decomposing, setDecomposing] = useState(false);
+  const [showAgentConfig, setShowAgentConfig] = useState(false);
+  const [agentIdInput, setAgentIdInput] = useState("");
 
   if (loading) return <div style={{ padding: "24px", color: C.textMuted }}>Loading...</div>;
   if (error) return <ErrorBanner message={error.message} />;
@@ -478,15 +498,31 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   };
 
   const handleDecompose = async () => {
+    const agentId = agentConfig?.decomposerAgentId;
+    if (!agentId) {
+      setShowAgentConfig(true);
+      setActionError("Configure the PRD Decomposer agent ID first (from PopeBot cluster).");
+      return;
+    }
     try {
       setActionError(null);
       setDecomposing(true);
-      await decomposePrdAction({ parentProjectId, projectId });
+      await decomposePrdAction({ parentProjectId, projectId, agentId, companyId });
       refresh();
     } catch (err: any) {
       setActionError(err.message || "Decomposition failed");
     } finally {
       setDecomposing(false);
+    }
+  };
+
+  const handleSaveAgentConfig = async () => {
+    try {
+      await saveAgentConfig({ parentProjectId, decomposerAgentId: agentIdInput.trim() });
+      setShowAgentConfig(false);
+      setActionError(null);
+    } catch (err: any) {
+      setActionError(err.message || "Failed to save agent config");
     }
   };
 
@@ -508,6 +544,33 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   return (
     <div>
       {actionError && <ErrorBanner message={actionError} />}
+
+      {/* Agent Config Panel */}
+      {showAgentConfig && (
+        <Card style={{ marginBottom: "16px", borderColor: C.accent }}>
+          <h4 style={{ margin: "0 0 8px 0", color: C.text, fontSize: "14px" }}>Configure Decomposer Agent</h4>
+          <p style={{ color: C.textMuted, fontSize: "12px", margin: "0 0 8px 0" }}>
+            Paste the PopeBot agent ID for the PRD Decomposer role in your cluster.
+            Find it in PopeBot UI → Cluster → PRD Decomposer role → copy agent ID.
+          </p>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <Input
+              value={agentIdInput}
+              onChange={setAgentIdInput}
+              placeholder="e.g. ab1be4d8-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            />
+            <Btn variant="primary" onClick={handleSaveAgentConfig} disabled={!agentIdInput.trim()}>
+              Save
+            </Btn>
+            <Btn variant="ghost" onClick={() => setShowAgentConfig(false)}>Cancel</Btn>
+          </div>
+          {agentConfig?.decomposerAgentId && (
+            <div style={{ marginTop: "6px", fontSize: "11px", color: C.textDim }}>
+              Current: {agentConfig.decomposerAgentId}
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
@@ -636,11 +699,16 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
           <h3 style={{ margin: 0, color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
             Build Jobs {jobs.length > 0 && `(${jobs.length})`}
           </h3>
-          {canDecompose && (
-            <Btn variant="primary" onClick={handleDecompose} disabled={decomposing}>
-              {decomposing ? "Analyzing..." : (jobs.length > 0 ? "Re-Analyze PRD" : "Analyze PRD")}
+          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+            {canDecompose && (
+              <Btn variant="primary" onClick={handleDecompose} disabled={decomposing}>
+                {decomposing ? "Analyzing..." : (jobs.length > 0 ? "Re-Analyze PRD" : "Analyze PRD")}
+              </Btn>
+            )}
+            <Btn variant="ghost" onClick={() => { setAgentIdInput(agentConfig?.decomposerAgentId || ""); setShowAgentConfig(true); }} style={{ fontSize: "12px", padding: "6px 8px" }}>
+              &#9881;
             </Btn>
-          )}
+          </div>
         </div>
         {jobs.length === 0 ? (
           <Card style={{ border: "1px dashed #475569", textAlign: "center", padding: "24px" }}>
@@ -701,7 +769,7 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
 // =============================================================================
 
 function ProjectsView() {
-  const { projectId: parentProjectId } = useHostContext();
+  const { projectId: parentProjectId, companyId } = useHostContext();
   const { data: projects, loading, error, refresh } = usePluginData<ManagedProject[]>("projects", {
     parentProjectId: parentProjectId || "",
   });
@@ -727,6 +795,7 @@ function ProjectsView() {
         <ProjectDetailView
           projectId={selectedProjectId}
           parentProjectId={parentProjectId}
+          companyId={companyId || ""}
           onBack={() => { setSelectedProjectId(null); refresh(); }}
         />
       </div>

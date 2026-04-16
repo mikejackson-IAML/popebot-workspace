@@ -25,6 +25,15 @@ const plugin = definePlugin({
             const usage = await store.getUsage(ctx.state, parentProjectId, projectId);
             return { project, jobs, pipeline, reviews, usage };
         });
+        ctx.data.register("agent-config", async (params) => {
+            const parentProjectId = params.parentProjectId;
+            if (!parentProjectId)
+                return { decomposerAgentId: null };
+            const config = await ctx.state.get({
+                scopeKind: "project", scopeId: parentProjectId, namespace: "automation", stateKey: "agent-config",
+            });
+            return config || { decomposerAgentId: null };
+        });
         // ── Action handlers (usePluginAction in UI) ──
         ctx.actions.register("create-project", async (params) => {
             const parentProjectId = params.parentProjectId;
@@ -65,6 +74,15 @@ const plugin = definePlugin({
             ctx.logger.info("project-automation: deleted project", { projectId });
             return { ok: true };
         });
+        ctx.actions.register("save-agent-config", async (params) => {
+            const parentProjectId = params.parentProjectId;
+            const decomposerAgentId = params.decomposerAgentId;
+            if (!parentProjectId)
+                throw new Error("parentProjectId required");
+            await ctx.state.set({ scopeKind: "project", scopeId: parentProjectId, namespace: "automation", stateKey: "agent-config" }, { decomposerAgentId });
+            ctx.logger.info("project-automation: saved agent config", { parentProjectId, decomposerAgentId });
+            return { ok: true };
+        });
         ctx.actions.register("update-job", async (params) => {
             const parentProjectId = params.parentProjectId;
             const projectId = params.projectId;
@@ -76,12 +94,18 @@ const plugin = definePlugin({
             ctx.logger.info("project-automation: updated job", { projectId, jobId });
             return updated;
         });
-        // ── Phase 2: PRD Decomposition ──
+        // ── Phase 2: PRD Decomposition via PopeBot Agent ──
         ctx.actions.register("decompose-prd", async (params) => {
             const parentProjectId = params.parentProjectId;
             const projectId = params.projectId;
+            const agentId = params.agentId;
+            const companyId = params.companyId;
             if (!parentProjectId || !projectId)
                 throw new Error("parentProjectId and projectId required");
+            if (!agentId)
+                throw new Error("agentId required — configure PRD Decomposer agent in PopeBot");
+            if (!companyId)
+                throw new Error("companyId required");
             const project = await store.getProject(ctx.state, parentProjectId, projectId);
             if (!project)
                 throw new Error("Project not found: " + projectId);
@@ -99,37 +123,23 @@ const plugin = definePlugin({
                 });
             };
             try {
-                emit("Starting PRD decomposition with Opus...");
-                const result = await decomposePrd({ http: ctx.http, secrets: ctx.secrets }, projectId, project.prdText, emit);
+                emit("Sending PRD to decomposer agent...");
+                const result = await decomposePrd({ agents: ctx.agents, streams: ctx.streams }, agentId, companyId, projectId, project.prdText, emit);
                 // Save build jobs
                 await store.setJobs(ctx.state, parentProjectId, projectId, result.jobs);
-                // Save usage record
-                const usageEntry = {
-                    id: crypto.randomUUID(),
-                    projectId,
-                    model: result.usageRecord.model,
-                    purpose: result.usageRecord.purpose,
-                    inputTokens: result.usageRecord.inputTokens,
-                    outputTokens: result.usageRecord.outputTokens,
-                    estimatedCostUsd: result.usageRecord.estimatedCostUsd,
-                    timestamp: new Date().toISOString(),
-                };
-                await store.addUsage(ctx.state, parentProjectId, projectId, usageEntry);
                 // Update project status and summary
                 await store.updateProject(ctx.state, parentProjectId, projectId, {
                     status: "ready",
                     decompositionSummary: result.summary,
                 });
-                emit(`Decomposition complete — ${result.jobs.length} build jobs created. Cost: $${usageEntry.estimatedCostUsd.toFixed(4)}`);
+                emit(`Decomposition complete — ${result.jobs.length} build jobs created.`);
                 ctx.logger.info("project-automation: PRD decomposed", {
                     projectId,
                     jobCount: result.jobs.length,
-                    cost: usageEntry.estimatedCostUsd,
                 });
                 return {
                     jobCount: result.jobs.length,
                     summary: result.summary,
-                    cost: usageEntry.estimatedCostUsd,
                 };
             }
             catch (err) {

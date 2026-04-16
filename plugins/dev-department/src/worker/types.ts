@@ -9,6 +9,9 @@ export type ProjectPriority = "P0" | "P1" | "P2" | "P3";
 // -- Build job status --
 export type BuildJobStatus = "pending" | "dispatched" | "building" | "merged" | "failed" | "skipped";
 
+// -- Build job type (determines which agent handles it) --
+export type BuildJobType = "code" | "workflow" | "config" | "schema";
+
 // -- Pipeline status --
 export type PipelineStatus = "queued" | "building" | "reviewing" | "fixing" | "complete" | "failed" | "cancelled";
 export type PipelineStep = "build" | "review" | "fix" | "advance";
@@ -59,6 +62,8 @@ export interface BuildJob {
   targetFiles: string[];
   /** IDs of other BuildJobs that must complete first */
   dependencies: string[];
+  /** Job type — determines routing: code→Builder, workflow→Workflow Builder */
+  jobType: BuildJobType;
   status: BuildJobStatus;
   /** PopeBot agent_job_id after dispatch */
   popebotJobId: string | null;

@@ -17,6 +17,11 @@ const manifest: PaperclipPluginManifestV1 = {
     "secrets.read-ref",
     "projects.read",
     "activity.log.write",
+    "agents.invoke",
+    "agent.sessions.create",
+    "agent.sessions.list",
+    "agent.sessions.send",
+    "agent.sessions.close",
   ],
   entrypoints: {
     worker: "./dist/worker.js",
