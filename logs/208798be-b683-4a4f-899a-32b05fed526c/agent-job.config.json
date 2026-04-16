@@ -1,4 +1,0 @@
-{
-  "title": "Implement versioned prompt templates with storage, versioning, and tracing",
-  "job": "Implement versioned prompt templates with template storage, versioning, variable substitution, and template selection logic. Include template tracking in traces."
-}
