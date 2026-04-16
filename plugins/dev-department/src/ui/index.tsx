@@ -441,7 +441,7 @@ function ProjectDetailView({ projectId, parentProjectId, companyId, onBack }: {
   const { events: progressEvents } = usePluginStream<PipelineProgressEvent>("pipeline-progress");
 
   // Agent config — stored per Paperclip project
-  const { data: agentConfig } = usePluginData<{ decomposerAgentId: string | null }>("agent-config", {
+  const { data: agentConfig, refresh: refreshAgentConfig } = usePluginData<{ decomposerAgentId: string | null }>("agent-config", {
     parentProjectId,
   });
 
@@ -521,6 +521,7 @@ function ProjectDetailView({ projectId, parentProjectId, companyId, onBack }: {
       await saveAgentConfig({ parentProjectId, decomposerAgentId: agentIdInput.trim() });
       setShowAgentConfig(false);
       setActionError(null);
+      refreshAgentConfig();
     } catch (err: any) {
       setActionError(err.message || "Failed to save agent config");
     }
