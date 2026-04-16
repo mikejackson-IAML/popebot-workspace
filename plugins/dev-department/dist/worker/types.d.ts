@@ -58,7 +58,7 @@ export interface PipelineRun {
 }
 /** An event emitted during pipeline execution */
 export interface PipelineEvent {
-    type: "build_started" | "build_dispatched" | "build_merged" | "build_failed" | "review_started" | "review_complete" | "fix_started" | "fix_applied" | "pipeline_complete" | "pipeline_failed" | "progress";
+    type: "build_started" | "build_dispatched" | "build_merged" | "build_failed" | "review_started" | "review_complete" | "review_tier_started" | "review_tier_complete" | "fix_started" | "fix_applied" | "pipeline_complete" | "pipeline_failed" | "progress";
     projectId: string;
     pipelineRunId: string;
     message: string;

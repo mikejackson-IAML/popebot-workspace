@@ -287,8 +287,27 @@ const plugin = definePlugin({
                                     projectId,
                                     pipelineRunId: pipelineRun.id,
                                     message: evt.message,
+                                    details: evt.details,
                                     timestamp: evt.timestamp,
                                 });
+                                // Save ReviewResult when a review tier completes
+                                if (evt.type === "review_tier_complete" && evt.details) {
+                                    const d = evt.details;
+                                    if (d.tier && d.verdict) {
+                                        const review = {
+                                            id: crypto.randomUUID(),
+                                            projectId,
+                                            pipelineRunId: pipelineRun.id,
+                                            tier: d.tier,
+                                            round: pipelineRun.reviewRound || 1,
+                                            verdict: d.verdict,
+                                            summary: evt.message,
+                                            findings: [],
+                                            createdAt: evt.timestamp,
+                                        };
+                                        await store.addReview(ctx.state, parentProjectId, projectId, review);
+                                    }
+                                }
                             }
                             eventsSeen = statusData.totalEvents;
                             // Update pipeline run status

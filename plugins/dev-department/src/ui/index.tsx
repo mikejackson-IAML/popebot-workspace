@@ -74,14 +74,30 @@ interface PipelineEvent {
   projectId: string;
   pipelineRunId: string;
   message: string;
+  details?: Record<string, unknown>;
   timestamp: string;
+}
+
+type ReviewTier = "haiku" | "deepseek" | "codex";
+type ReviewVerdict = "approve" | "request-changes" | "block" | "pass" | "concerns" | "reject" | "unknown";
+
+interface ReviewResult {
+  id: string;
+  projectId: string;
+  pipelineRunId: string;
+  tier: ReviewTier;
+  round: number;
+  verdict: ReviewVerdict;
+  summary: string;
+  findings: string[];
+  createdAt: string;
 }
 
 interface ProjectDetail {
   project: ManagedProject;
   jobs: BuildJob[];
   pipeline: PipelineRun | null;
-  reviews: unknown[];
+  reviews: ReviewResult[];
   usage: LLMUsageRecord[];
 }
 
@@ -127,6 +143,22 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   // pipeline statuses
   queued: { bg: "#374151", text: "#9ca3af" },
   cancelled: { bg: "#78350f", text: "#fbbf24" },
+};
+
+const TIER_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+  haiku: { bg: "#1e3a5f", text: "#60a5fa", label: "Tier 1: Haiku" },
+  deepseek: { bg: "#4c1d95", text: "#c4b5fd", label: "Tier 2: DeepSeek" },
+  codex: { bg: "#064e3b", text: "#34d399", label: "Tier 3: Codex" },
+};
+
+const VERDICT_COLORS: Record<string, { bg: string; text: string }> = {
+  approve: { bg: "#14532d", text: "#4ade80" },
+  pass: { bg: "#14532d", text: "#4ade80" },
+  concerns: { bg: "#78350f", text: "#fbbf24" },
+  "request-changes": { bg: "#7f1d1d", text: "#f87171" },
+  block: { bg: "#7f1d1d", text: "#f87171" },
+  reject: { bg: "#7f1d1d", text: "#f87171" },
+  unknown: { bg: "#374151", text: "#9ca3af" },
 };
 
 const PRIORITY_COLORS: Record<string, { bg: string; text: string }> = {
@@ -505,7 +537,7 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   if (error) return <ErrorBanner message={error.message} />;
   if (!data) return <ErrorBanner message="Project not found" />;
 
-  const { project, jobs, usage } = data;
+  const { project, jobs, usage, reviews } = data;
 
   // Auto-poll: if pipeline is active, schedule next tick to re-fetch data.
   // Starts from Start Build click OR when navigating into an already-building project.
@@ -970,10 +1002,73 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
         )}
       </div>
 
-      {/* Reviews placeholder — Phase 4 */}
-      <Card style={{ border: "1px dashed #475569" }}>
-        <span style={{ color: C.textDim, fontSize: "13px" }}>Multi-tier reviews — coming in Phase 4</span>
-      </Card>
+      {/* Review Tiers */}
+      <div style={{ marginBottom: "16px" }}>
+        <h3 style={{ margin: "0 0 12px 0", color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+          Review Tiers {reviews.length > 0 && `(${reviews.length} results)`}
+        </h3>
+
+        {reviews.length === 0 ? (
+          <Card style={{ border: "1px dashed #475569", textAlign: "center", padding: "24px" }}>
+            <span style={{ color: C.textDim }}>
+              Review results will appear here during pipeline execution.
+              {isPipelineRunning && " Pipeline is running..."}
+            </span>
+          </Card>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {/* Group reviews by round */}
+            {Array.from(new Set(reviews.map(r => r.round))).sort().map(round => {
+              const roundReviews = reviews.filter(r => r.round === round);
+              // Order: haiku, deepseek, codex
+              const tierOrder: ReviewTier[] = ["haiku", "deepseek", "codex"];
+              const sorted = tierOrder
+                .map(t => roundReviews.find(r => r.tier === t))
+                .filter((r): r is ReviewResult => !!r);
+
+              return (
+                <Card key={round} style={{ padding: "12px 16px" }}>
+                  <div style={{ fontSize: "12px", color: C.textMuted, marginBottom: "8px", fontWeight: 600 }}>
+                    Round {round}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {sorted.map(review => {
+                      const tc = TIER_COLORS[review.tier] || TIER_COLORS.haiku;
+                      const vc = VERDICT_COLORS[review.verdict] || VERDICT_COLORS.unknown;
+                      return (
+                        <div key={review.id} style={{
+                          display: "flex", justifyContent: "space-between", alignItems: "center",
+                          padding: "8px 12px", backgroundColor: "#0f172a", borderRadius: "6px",
+                          border: `1px solid ${C.border}`,
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                            <span style={{
+                              padding: "2px 10px", borderRadius: "12px", fontSize: "11px",
+                              fontWeight: 600, backgroundColor: tc.bg, color: tc.text,
+                            }}>
+                              {tc.label}
+                            </span>
+                            <span style={{ fontSize: "12px", color: C.textDim }}>
+                              {new Date(review.createdAt).toLocaleTimeString()}
+                            </span>
+                          </div>
+                          <span style={{
+                            padding: "2px 10px", borderRadius: "12px", fontSize: "11px",
+                            fontWeight: 600, backgroundColor: vc.bg, color: vc.text,
+                            textTransform: "uppercase",
+                          }}>
+                            {review.verdict}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

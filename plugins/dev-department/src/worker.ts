@@ -1,5 +1,5 @@
 import { definePlugin, startWorkerRpcHost } from "@paperclipai/plugin-sdk";
-import type { ManagedProject, ProjectPriority, PipelineEvent, LLMUsage } from "./worker/types.js";
+import type { ManagedProject, ProjectPriority, PipelineEvent, LLMUsage, ReviewResult, ReviewTier, ReviewVerdict } from "./worker/types.js";
 import * as store from "./worker/state.js";
 import { decomposePrd } from "./worker/prd-decomposer.js";
 
@@ -337,8 +337,9 @@ const plugin = definePlugin({
               const statusData = await statusRes.json() as {
                 status: string;
                 currentStep: string;
-                events: Array<{ type: string; message: string; timestamp: string }>;
+                events: Array<{ type: string; message: string; timestamp: string; details?: Record<string, unknown> }>;
                 totalEvents: number;
+                reviewTiers?: Record<string, { tier: string; tierNum: number; verdict: string; timestamp: string }>;
               };
 
               // Write new events to state
@@ -348,8 +349,28 @@ const plugin = definePlugin({
                   projectId,
                   pipelineRunId: pipelineRun.id,
                   message: evt.message,
+                  details: evt.details,
                   timestamp: evt.timestamp,
                 });
+
+                // Save ReviewResult when a review tier completes
+                if (evt.type === "review_tier_complete" && evt.details) {
+                  const d = evt.details as { tier?: string; tierNum?: number; verdict?: string };
+                  if (d.tier && d.verdict) {
+                    const review: ReviewResult = {
+                      id: crypto.randomUUID(),
+                      projectId,
+                      pipelineRunId: pipelineRun.id,
+                      tier: d.tier as ReviewTier,
+                      round: pipelineRun.reviewRound || 1,
+                      verdict: d.verdict as ReviewVerdict,
+                      summary: evt.message,
+                      findings: [],
+                      createdAt: evt.timestamp,
+                    };
+                    await store.addReview(ctx.state, parentProjectId, projectId, review);
+                  }
+                }
               }
               eventsSeen = statusData.totalEvents;
 

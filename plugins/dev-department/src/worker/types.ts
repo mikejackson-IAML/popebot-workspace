@@ -96,6 +96,8 @@ export interface PipelineEvent {
     | "build_failed"
     | "review_started"
     | "review_complete"
+    | "review_tier_started"
+    | "review_tier_complete"
     | "fix_started"
     | "fix_applied"
     | "pipeline_complete"

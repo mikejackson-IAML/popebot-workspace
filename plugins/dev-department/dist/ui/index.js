@@ -37,6 +37,20 @@ const STATUS_COLORS = {
     queued: { bg: "#374151", text: "#9ca3af" },
     cancelled: { bg: "#78350f", text: "#fbbf24" },
 };
+const TIER_COLORS = {
+    haiku: { bg: "#1e3a5f", text: "#60a5fa", label: "Tier 1: Haiku" },
+    deepseek: { bg: "#4c1d95", text: "#c4b5fd", label: "Tier 2: DeepSeek" },
+    codex: { bg: "#064e3b", text: "#34d399", label: "Tier 3: Codex" },
+};
+const VERDICT_COLORS = {
+    approve: { bg: "#14532d", text: "#4ade80" },
+    pass: { bg: "#14532d", text: "#4ade80" },
+    concerns: { bg: "#78350f", text: "#fbbf24" },
+    "request-changes": { bg: "#7f1d1d", text: "#f87171" },
+    block: { bg: "#7f1d1d", text: "#f87171" },
+    reject: { bg: "#7f1d1d", text: "#f87171" },
+    unknown: { bg: "#374151", text: "#9ca3af" },
+};
 const PRIORITY_COLORS = {
     P0: { bg: "#7f1d1d", text: "#fca5a5" },
     P1: { bg: "#78350f", text: "#fbbf24" },
@@ -220,7 +234,7 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
         return _jsx(ErrorBanner, { message: error.message });
     if (!data)
         return _jsx(ErrorBanner, { message: "Project not found" });
-    const { project, jobs, usage } = data;
+    const { project, jobs, usage, reviews } = data;
     // Auto-poll: if pipeline is active, schedule next tick to re-fetch data.
     // Starts from Start Build click OR when navigating into an already-building project.
     const isActive = project.status === "building" || project.status === "reviewing";
@@ -393,7 +407,30 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
                                                     color: evt.type === "pipeline_complete" ? C.success
                                                         : evt.type === "pipeline_failed" ? "#f87171"
                                                             : C.text,
-                                                }, children: evt.message })] }, i))), isPipelineRunning && (_jsx("div", { style: { fontSize: "12px", color: C.accent, padding: "4px 0" }, children: "Pipeline running... (updates every 10s)" }))] })] })), !pipeline && !canStartPipeline && jobs.length === 0 && (_jsx(Card, { style: { border: "1px dashed #475569", textAlign: "center", padding: "24px" }, children: _jsx("span", { style: { color: C.textDim }, children: "Decompose a PRD into build jobs first, then start the pipeline." }) })), !pipeline && canStartPipeline && (_jsx(Card, { style: { border: "1px dashed #475569", textAlign: "center", padding: "24px" }, children: _jsxs("span", { style: { color: C.textDim }, children: [jobs.length, " jobs ready. Click \"Start Build\" to launch the pipeline on RTX."] }) }))] }), _jsx(Card, { style: { border: "1px dashed #475569" }, children: _jsx("span", { style: { color: C.textDim, fontSize: "13px" }, children: "Multi-tier reviews \u2014 coming in Phase 4" }) })] }));
+                                                }, children: evt.message })] }, i))), isPipelineRunning && (_jsx("div", { style: { fontSize: "12px", color: C.accent, padding: "4px 0" }, children: "Pipeline running... (updates every 10s)" }))] })] })), !pipeline && !canStartPipeline && jobs.length === 0 && (_jsx(Card, { style: { border: "1px dashed #475569", textAlign: "center", padding: "24px" }, children: _jsx("span", { style: { color: C.textDim }, children: "Decompose a PRD into build jobs first, then start the pipeline." }) })), !pipeline && canStartPipeline && (_jsx(Card, { style: { border: "1px dashed #475569", textAlign: "center", padding: "24px" }, children: _jsxs("span", { style: { color: C.textDim }, children: [jobs.length, " jobs ready. Click \"Start Build\" to launch the pipeline on RTX."] }) }))] }), _jsxs("div", { style: { marginBottom: "16px" }, children: [_jsxs("h3", { style: { margin: "0 0 12px 0", color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }, children: ["Review Tiers ", reviews.length > 0 && `(${reviews.length} results)`] }), reviews.length === 0 ? (_jsx(Card, { style: { border: "1px dashed #475569", textAlign: "center", padding: "24px" }, children: _jsxs("span", { style: { color: C.textDim }, children: ["Review results will appear here during pipeline execution.", isPipelineRunning && " Pipeline is running..."] }) })) : (_jsx("div", { style: { display: "flex", flexDirection: "column", gap: "6px" }, children: Array.from(new Set(reviews.map(r => r.round))).sort().map(round => {
+                            const roundReviews = reviews.filter(r => r.round === round);
+                            // Order: haiku, deepseek, codex
+                            const tierOrder = ["haiku", "deepseek", "codex"];
+                            const sorted = tierOrder
+                                .map(t => roundReviews.find(r => r.tier === t))
+                                .filter((r) => !!r);
+                            return (_jsxs(Card, { style: { padding: "12px 16px" }, children: [_jsxs("div", { style: { fontSize: "12px", color: C.textMuted, marginBottom: "8px", fontWeight: 600 }, children: ["Round ", round] }), _jsx("div", { style: { display: "flex", flexDirection: "column", gap: "8px" }, children: sorted.map(review => {
+                                            const tc = TIER_COLORS[review.tier] || TIER_COLORS.haiku;
+                                            const vc = VERDICT_COLORS[review.verdict] || VERDICT_COLORS.unknown;
+                                            return (_jsxs("div", { style: {
+                                                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                                                    padding: "8px 12px", backgroundColor: "#0f172a", borderRadius: "6px",
+                                                    border: `1px solid ${C.border}`,
+                                                }, children: [_jsxs("div", { style: { display: "flex", alignItems: "center", gap: "10px" }, children: [_jsx("span", { style: {
+                                                                    padding: "2px 10px", borderRadius: "12px", fontSize: "11px",
+                                                                    fontWeight: 600, backgroundColor: tc.bg, color: tc.text,
+                                                                }, children: tc.label }), _jsx("span", { style: { fontSize: "12px", color: C.textDim }, children: new Date(review.createdAt).toLocaleTimeString() })] }), _jsx("span", { style: {
+                                                            padding: "2px 10px", borderRadius: "12px", fontSize: "11px",
+                                                            fontWeight: 600, backgroundColor: vc.bg, color: vc.text,
+                                                            textTransform: "uppercase",
+                                                        }, children: review.verdict })] }, review.id));
+                                        }) })] }, round));
+                        }) }))] })] }));
 }
 // =============================================================================
 // Main Projects View
