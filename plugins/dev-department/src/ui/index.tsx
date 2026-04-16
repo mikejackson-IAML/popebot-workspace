@@ -879,9 +879,13 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
                 Auto-advance
               </span>
             </div>
-            {project.phaseNumber > 0 && (
-              <span style={{ fontSize: "12px", color: C.textDim }}>Phase {project.phaseNumber}</span>
-            )}
+            <span style={{
+              fontSize: "12px", color: "#c4b5fd", fontWeight: 600,
+              padding: "4px 10px", borderRadius: "12px",
+              backgroundColor: "#4c1d95",
+            }}>
+              Phase {project.phaseNumber || 1}
+            </span>
             {project.sourceProjectId && (
               <span style={{ fontSize: "11px", color: C.textDim }}>
                 (from {project.sourceProjectId.slice(0, 8)})
@@ -1025,7 +1029,20 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
               <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                 <Badge label={pipeline.status} />
                 <span style={{ fontSize: "12px", color: C.textMuted }}>
-                  Step: {pipeline.currentStep}
+                  {(() => {
+                    const steps = ["build", "review", "fix", "done"];
+                    const labels: Record<string, string> = {
+                      build: "Building code",
+                      review: "Running reviews (haiku → deepseek → codex)",
+                      fix: "Applying fixes",
+                      advance: "Advancing phase",
+                      done: "Complete",
+                    };
+                    const current = pipeline.currentStep || "build";
+                    const stepNum = steps.indexOf(current) + 1 || 1;
+                    const total = steps.length;
+                    return `Step ${stepNum}/${total}: ${labels[current] || current}`;
+                  })()}
                 </span>
               </div>
               <span style={{ fontSize: "11px", color: C.textDim }}>
