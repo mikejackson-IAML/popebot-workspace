@@ -167,9 +167,25 @@ function EditableJobCard({ job, index, onSave }) {
 // Project Detail View
 // =============================================================================
 function ProjectDetailView({ projectId, parentProjectId, onBack }) {
+    const [pollTick, setPollTick] = useState(0);
+    const [pendingPoll, setPendingPoll] = useState(false);
+    // Schedule next poll tick. Uses pendingPoll flag to prevent stacking multiple
+    // timeouts. The chain: Start Build → setPendingPoll(true) → render detects
+    // pendingPoll+active → fires one setTimeout → tick increments → params change →
+    // usePluginData re-fetches → render again → repeat while active.
+    const scheduleNextTick = () => {
+        if (pendingPoll)
+            return;
+        setPendingPoll(true);
+        setTimeout(() => {
+            setPollTick((t) => t + 1);
+            setPendingPoll(false);
+        }, 8_000);
+    };
     const { data, loading, error, refresh } = usePluginData("project-detail", {
         parentProjectId,
         projectId,
+        _tick: pollTick,
     });
     const updateProject = usePluginAction("update-project");
     const deleteProjectAction = usePluginAction("delete-project");
@@ -184,8 +200,9 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     const { data: progressData } = usePluginData("progress-log", {
         parentProjectId, projectId,
     });
-    const { data: pipelineEvents } = usePluginData("pipeline-events", {
+    const { data: pipelineEvents, refresh: refreshPipelineEvents } = usePluginData("pipeline-events", {
         parentProjectId, projectId,
+        _tick: pollTick,
     });
     const [editing, setEditing] = useState(false);
     const [editName, setEditName] = useState("");
@@ -205,6 +222,12 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
     if (!data)
         return _jsx(ErrorBanner, { message: "Project not found" });
     const { project, jobs, usage } = data;
+    // Auto-poll: if pipeline is active, schedule next tick to re-fetch data.
+    // Starts from Start Build click OR when navigating into an already-building project.
+    const isActive = project.status === "building" || project.status === "reviewing";
+    if (isActive && !pendingPoll) {
+        scheduleNextTick();
+    }
     // Filter progress events for this project
     const myProgress = progressData || [];
     const startEditing = () => {
@@ -367,7 +390,7 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
                                     maxHeight: "300px", overflow: "auto", margin: 0,
                                 }, children: project.prdText })] })) : (_jsx(Card, { style: { border: "1px dashed #475569" }, children: _jsx("span", { style: { color: C.textDim }, children: "No PRD attached. Edit this project to add one." }) }))] })), (isPlanning || myProgress.length > 0) && (_jsxs(Card, { style: { marginBottom: "16px", borderColor: C.accent }, children: [_jsx(Label, { children: "Progress" }), _jsxs("div", { style: { maxHeight: "150px", overflow: "auto" }, children: [myProgress.map((evt, i) => (_jsxs("div", { style: { fontSize: "12px", color: C.textMuted, padding: "2px 0", fontFamily: "monospace" }, children: [_jsx("span", { style: { color: C.textDim, marginRight: "8px" }, children: new Date(evt.timestamp).toLocaleTimeString() }), evt.message] }, i))), decomposing && myProgress.length === 0 && (_jsx("div", { style: { fontSize: "12px", color: C.accent }, children: "Starting decomposition..." }))] })] })), _jsxs("div", { style: { marginBottom: "16px" }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }, children: [_jsxs("h3", { style: { margin: 0, color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }, children: ["Build Jobs ", jobs.length > 0 && `(${jobs.length})`] }), _jsxs("div", { style: { display: "flex", gap: "6px", alignItems: "center" }, children: [canDecompose && (_jsx(Btn, { variant: "primary", onClick: handleDecompose, disabled: decomposing, children: decomposing ? "Analyzing..." : (jobs.length > 0 ? "Re-Analyze PRD" : "Analyze PRD") })), canStartPipeline && !isPipelineRunning && (_jsx(Btn, { variant: "primary", onClick: handleStartPipeline, disabled: pipelineStarting, style: { backgroundColor: "#059669" }, children: pipelineStarting ? "Starting..." : "Start Build" })), _jsx(Btn, { variant: "ghost", onClick: () => setShowApiKeyConfig(true), style: { fontSize: "12px", padding: "6px 8px" }, children: "\u2699" })] })] }), jobs.length === 0 ? (_jsx(Card, { style: { border: "1px dashed #475569", textAlign: "center", padding: "24px" }, children: _jsx("span", { style: { color: C.textDim }, children: project.prdText
                                 ? 'PRD attached. Click "Analyze PRD" to decompose into build jobs.'
-                                : "Add a PRD first, then analyze it to generate build jobs." }) })) : (_jsx("div", { style: { display: "flex", flexDirection: "column", gap: "6px" }, children: jobs.map((job, i) => (_jsx(EditableJobCard, { job: job, index: i, onSave: (updates) => handleUpdateJob(job.id, updates) }, job.id))) }))] }), totalCost > 0 && (_jsxs(Card, { style: { marginBottom: "16px" }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" }, children: [_jsx(Label, { children: "LLM Cost" }), _jsxs("span", { style: { color: C.success, fontSize: "14px", fontWeight: 600 }, children: ["$", totalCost.toFixed(4)] })] }), _jsx("div", { style: { marginTop: "4px" }, children: usage.map((u, i) => (_jsxs("div", { style: { fontSize: "11px", color: C.textDim }, children: [u.model, " (", u.purpose, ") \u2014 ", u.inputTokens.toLocaleString(), " in / ", u.outputTokens.toLocaleString(), " out \u2014 $", u.estimatedCostUsd.toFixed(4)] }, i))) })] })), _jsxs("div", { style: { marginBottom: "16px" }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }, children: [_jsx("h3", { style: { margin: 0, color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }, children: "Pipeline" }), _jsxs("div", { style: { display: "flex", gap: "6px", alignItems: "center" }, children: [canStartPipeline && (_jsx(Btn, { variant: "primary", onClick: handleStartPipeline, disabled: pipelineStarting, children: pipelineStarting ? "Starting..." : "Start Build" })), isPipelineRunning && (_jsx(Btn, { variant: "danger", onClick: handleCancelPipeline, disabled: cancelling, children: cancelling ? "Cancelling..." : "Cancel" }))] })] }), pipeline && (_jsxs(Card, { style: { marginBottom: "8px" }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }, children: [_jsxs("div", { style: { display: "flex", gap: "8px", alignItems: "center" }, children: [_jsx(Badge, { label: pipeline.status }), _jsxs("span", { style: { fontSize: "12px", color: C.textMuted }, children: ["Step: ", pipeline.currentStep] })] }), _jsx("span", { style: { fontSize: "11px", color: C.textDim }, children: pipeline.rtxPipelineId ? `RTX: ${pipeline.rtxPipelineId.slice(0, 8)}...` : "" })] }), _jsxs("div", { style: { fontSize: "12px", color: C.textDim }, children: ["Started: ", new Date(pipeline.startedAt).toLocaleString(), pipeline.completedAt && (_jsxs("span", { children: [" | Completed: ", new Date(pipeline.completedAt).toLocaleString()] }))] })] })), myPipelineEvents.length > 0 && (_jsxs(Card, { style: { borderColor: isPipelineRunning ? C.accent : C.border }, children: [_jsx(Label, { children: "Pipeline Events" }), _jsxs("div", { style: { maxHeight: "250px", overflow: "auto" }, children: [myPipelineEvents.map((evt, i) => (_jsxs("div", { style: { fontSize: "12px", color: C.textMuted, padding: "2px 0", fontFamily: "monospace" }, children: [_jsx("span", { style: { color: C.textDim, marginRight: "8px" }, children: new Date(evt.timestamp).toLocaleTimeString() }), _jsx("span", { style: {
+                                : "Add a PRD first, then analyze it to generate build jobs." }) })) : (_jsx("div", { style: { display: "flex", flexDirection: "column", gap: "6px" }, children: jobs.map((job, i) => (_jsx(EditableJobCard, { job: job, index: i, onSave: (updates) => handleUpdateJob(job.id, updates) }, job.id))) }))] }), totalCost > 0 && (_jsxs(Card, { style: { marginBottom: "16px" }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" }, children: [_jsx(Label, { children: "LLM Cost" }), _jsxs("span", { style: { color: C.success, fontSize: "14px", fontWeight: 600 }, children: ["$", totalCost.toFixed(4)] })] }), _jsx("div", { style: { marginTop: "4px" }, children: usage.map((u, i) => (_jsxs("div", { style: { fontSize: "11px", color: C.textDim }, children: [u.model, " (", u.purpose, ") \u2014 ", u.inputTokens.toLocaleString(), " in / ", u.outputTokens.toLocaleString(), " out \u2014 $", u.estimatedCostUsd.toFixed(4)] }, i))) })] })), _jsxs("div", { style: { marginBottom: "16px" }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }, children: [_jsx("h3", { style: { margin: 0, color: C.textMuted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.5px" }, children: "Pipeline" }), _jsx("div", { style: { display: "flex", gap: "6px", alignItems: "center" }, children: isPipelineRunning && (_jsx(Btn, { variant: "danger", onClick: handleCancelPipeline, disabled: cancelling, children: cancelling ? "Cancelling..." : "Cancel" })) })] }), pipeline && (_jsxs(Card, { style: { marginBottom: "8px" }, children: [_jsxs("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }, children: [_jsxs("div", { style: { display: "flex", gap: "8px", alignItems: "center" }, children: [_jsx(Badge, { label: pipeline.status }), _jsxs("span", { style: { fontSize: "12px", color: C.textMuted }, children: ["Step: ", pipeline.currentStep] })] }), _jsx("span", { style: { fontSize: "11px", color: C.textDim }, children: pipeline.rtxPipelineId ? `RTX: ${pipeline.rtxPipelineId.slice(0, 8)}...` : "" })] }), _jsxs("div", { style: { fontSize: "12px", color: C.textDim }, children: ["Started: ", new Date(pipeline.startedAt).toLocaleString(), pipeline.completedAt && (_jsxs("span", { children: [" | Completed: ", new Date(pipeline.completedAt).toLocaleString()] }))] })] })), myPipelineEvents.length > 0 && (_jsxs(Card, { style: { borderColor: isPipelineRunning ? C.accent : C.border }, children: [_jsx(Label, { children: "Pipeline Events" }), _jsxs("div", { style: { maxHeight: "250px", overflow: "auto" }, children: [myPipelineEvents.map((evt, i) => (_jsxs("div", { style: { fontSize: "12px", color: C.textMuted, padding: "2px 0", fontFamily: "monospace" }, children: [_jsx("span", { style: { color: C.textDim, marginRight: "8px" }, children: new Date(evt.timestamp).toLocaleTimeString() }), _jsx("span", { style: {
                                                     color: evt.type === "pipeline_complete" ? C.success
                                                         : evt.type === "pipeline_failed" ? "#f87171"
                                                             : C.text,

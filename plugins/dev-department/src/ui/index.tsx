@@ -449,9 +449,26 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   parentProjectId: string;
   onBack: () => void;
 }) {
+  const [pollTick, setPollTick] = useState(0);
+  const [pendingPoll, setPendingPoll] = useState(false);
+
+  // Schedule next poll tick. Uses pendingPoll flag to prevent stacking multiple
+  // timeouts. The chain: Start Build → setPendingPoll(true) → render detects
+  // pendingPoll+active → fires one setTimeout → tick increments → params change →
+  // usePluginData re-fetches → render again → repeat while active.
+  const scheduleNextTick = () => {
+    if (pendingPoll) return;
+    setPendingPoll(true);
+    setTimeout(() => {
+      setPollTick((t) => t + 1);
+      setPendingPoll(false);
+    }, 8_000);
+  };
+
   const { data, loading, error, refresh } = usePluginData<ProjectDetail>("project-detail", {
     parentProjectId,
     projectId,
+    _tick: pollTick,
   });
 
   const updateProject = usePluginAction("update-project");
@@ -468,8 +485,9 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   const { data: progressData } = usePluginData<ProgressMessage[]>("progress-log", {
     parentProjectId, projectId,
   });
-  const { data: pipelineEvents } = usePluginData<PipelineEvent[]>("pipeline-events", {
+  const { data: pipelineEvents, refresh: refreshPipelineEvents } = usePluginData<PipelineEvent[]>("pipeline-events", {
     parentProjectId, projectId,
+    _tick: pollTick,
   });
 
   const [editing, setEditing] = useState(false);
@@ -489,6 +507,13 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
   if (!data) return <ErrorBanner message="Project not found" />;
 
   const { project, jobs, usage } = data;
+
+  // Auto-poll: if pipeline is active, schedule next tick to re-fetch data.
+  // Starts from Start Build click OR when navigating into an already-building project.
+  const isActive = project.status === "building" || project.status === "reviewing";
+  if (isActive && !pendingPoll) {
+    scheduleNextTick();
+  }
 
   // Filter progress events for this project
   const myProgress = progressData || [];
@@ -870,11 +895,6 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
             Pipeline
           </h3>
           <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-            {canStartPipeline && (
-              <Btn variant="primary" onClick={handleStartPipeline} disabled={pipelineStarting}>
-                {pipelineStarting ? "Starting..." : "Start Build"}
-              </Btn>
-            )}
             {isPipelineRunning && (
               <Btn variant="danger" onClick={handleCancelPipeline} disabled={cancelling}>
                 {cancelling ? "Cancelling..." : "Cancel"}
