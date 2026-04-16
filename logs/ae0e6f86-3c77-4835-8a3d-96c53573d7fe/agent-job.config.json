@@ -1,0 +1,4 @@
+{
+  "title": "Add validation layer to RTX router with memory write and tracing",
+  "job": "Add validation layer to RTX router execution flow. Implement validation before memory writes and trace validation results. Ensure backward compatibility with existing flows."
+}
