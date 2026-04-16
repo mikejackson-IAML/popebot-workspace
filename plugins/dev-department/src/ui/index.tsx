@@ -211,6 +211,24 @@ function CreateProjectForm({ onSubmit, onCancel }: {
   const [name, setName] = useState("");
   const [prdText, setPrdText] = useState("");
   const [priority, setPriority] = useState<ProjectPriority>("P2");
+  const [fileName, setFileName] = useState<string | null>(null);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      if (text) setPrdText(text);
+    };
+    reader.readAsText(file);
+    // Auto-fill project name from filename if empty
+    if (!name.trim()) {
+      const baseName = file.name.replace(/\.(md|txt|markdown|rst|prd)$/i, "").replace(/[-_]/g, " ");
+      setName(baseName);
+    }
+  };
 
   return (
     <Card style={{ marginBottom: "16px" }}>
@@ -234,11 +252,32 @@ function CreateProjectForm({ onSubmit, onCancel }: {
           />
         </div>
         <div>
-          <Label>PRD (paste full text)</Label>
+          <Label>PRD</Label>
+          <div style={{
+            display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px",
+          }}>
+            <label style={{
+              padding: "8px 16px", backgroundColor: "#374151", color: C.text,
+              borderRadius: "6px", fontSize: "13px", fontWeight: 500, cursor: "pointer",
+              border: `1px solid ${C.border}`,
+            }}>
+              Upload File
+              <input
+                type="file"
+                accept=".md,.txt,.markdown,.rst,.prd"
+                onChange={handleFileUpload}
+                style={{ display: "none" }}
+              />
+            </label>
+            {fileName && (
+              <span style={{ color: C.textMuted, fontSize: "13px" }}>{fileName}</span>
+            )}
+            <span style={{ color: C.textDim, fontSize: "12px" }}>or paste below</span>
+          </div>
           <TextArea
             value={prdText}
             onChange={setPrdText}
-            placeholder="Paste your PRD here. This will be analyzed by Opus to generate build jobs..."
+            placeholder="Paste your PRD here, or upload a file above..."
             rows={12}
           />
         </div>
@@ -353,6 +392,31 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }: {
             </div>
             <div>
               <Label>PRD</Label>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
+                <label style={{
+                  padding: "8px 16px", backgroundColor: "#374151", color: C.text,
+                  borderRadius: "6px", fontSize: "13px", fontWeight: 500, cursor: "pointer",
+                  border: `1px solid ${C.border}`,
+                }}>
+                  Upload File
+                  <input
+                    type="file"
+                    accept=".md,.txt,.markdown,.rst,.prd"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (ev) => {
+                        const text = ev.target?.result as string;
+                        if (text) setEditPrd(text);
+                      };
+                      reader.readAsText(file);
+                    }}
+                    style={{ display: "none" }}
+                  />
+                </label>
+                <span style={{ color: C.textDim, fontSize: "12px" }}>or edit below</span>
+              </div>
               <TextArea value={editPrd} onChange={setEditPrd} placeholder="PRD text..." rows={12} />
             </div>
             <div style={{ display: "flex", gap: "8px" }}>

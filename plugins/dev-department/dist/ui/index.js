@@ -99,12 +99,37 @@ function CreateProjectForm({ onSubmit, onCancel }) {
     const [name, setName] = useState("");
     const [prdText, setPrdText] = useState("");
     const [priority, setPriority] = useState("P2");
+    const [fileName, setFileName] = useState(null);
+    const handleFileUpload = (e) => {
+        const file = e.target.files?.[0];
+        if (!file)
+            return;
+        setFileName(file.name);
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const text = ev.target?.result;
+            if (text)
+                setPrdText(text);
+        };
+        reader.readAsText(file);
+        // Auto-fill project name from filename if empty
+        if (!name.trim()) {
+            const baseName = file.name.replace(/\.(md|txt|markdown|rst|prd)$/i, "").replace(/[-_]/g, " ");
+            setName(baseName);
+        }
+    };
     return (_jsxs(Card, { style: { marginBottom: "16px" }, children: [_jsx("h3", { style: { margin: "0 0 16px 0", color: C.text, fontSize: "16px" }, children: "New Project" }), _jsxs("div", { style: { display: "grid", gap: "12px" }, children: [_jsxs("div", { children: [_jsx(Label, { children: "Project Name" }), _jsx(Input, { value: name, onChange: setName, placeholder: "e.g. IAML Website Redesign" })] }), _jsxs("div", { children: [_jsx(Label, { children: "Priority" }), _jsx(Select, { value: priority, onChange: (v) => setPriority(v), options: [
                                     { value: "P0", label: "P0 — Critical" },
                                     { value: "P1", label: "P1 — High" },
                                     { value: "P2", label: "P2 — Medium" },
                                     { value: "P3", label: "P3 — Low" },
-                                ] })] }), _jsxs("div", { children: [_jsx(Label, { children: "PRD (paste full text)" }), _jsx(TextArea, { value: prdText, onChange: setPrdText, placeholder: "Paste your PRD here. This will be analyzed by Opus to generate build jobs...", rows: 12 })] }), _jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx(Btn, { onClick: () => onSubmit({ name, prdText, priority }), variant: "primary", disabled: !name.trim(), children: "Create Project" }), _jsx(Btn, { onClick: onCancel, variant: "ghost", children: "Cancel" })] })] })] }));
+                                ] })] }), _jsxs("div", { children: [_jsx(Label, { children: "PRD" }), _jsxs("div", { style: {
+                                    display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px",
+                                }, children: [_jsxs("label", { style: {
+                                            padding: "8px 16px", backgroundColor: "#374151", color: C.text,
+                                            borderRadius: "6px", fontSize: "13px", fontWeight: 500, cursor: "pointer",
+                                            border: `1px solid ${C.border}`,
+                                        }, children: ["Upload File", _jsx("input", { type: "file", accept: ".md,.txt,.markdown,.rst,.prd", onChange: handleFileUpload, style: { display: "none" } })] }), fileName && (_jsx("span", { style: { color: C.textMuted, fontSize: "13px" }, children: fileName })), _jsx("span", { style: { color: C.textDim, fontSize: "12px" }, children: "or paste below" })] }), _jsx(TextArea, { value: prdText, onChange: setPrdText, placeholder: "Paste your PRD here, or upload a file above...", rows: 12 })] }), _jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx(Btn, { onClick: () => onSubmit({ name, prdText, priority }), variant: "primary", disabled: !name.trim(), children: "Create Project" }), _jsx(Btn, { onClick: onCancel, variant: "ghost", children: "Cancel" })] })] })] }));
 }
 // =============================================================================
 // Project Detail View
@@ -165,7 +190,22 @@ function ProjectDetailView({ projectId, parentProjectId, onBack }) {
                                         { value: "P1", label: "P1 — High" },
                                         { value: "P2", label: "P2 — Medium" },
                                         { value: "P3", label: "P3 — Low" },
-                                    ] })] }), _jsxs("div", { children: [_jsx(Label, { children: "PRD" }), _jsx(TextArea, { value: editPrd, onChange: setEditPrd, placeholder: "PRD text...", rows: 12 })] }), _jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx(Btn, { onClick: handleSave, variant: "primary", children: "Save" }), _jsx(Btn, { onClick: () => setEditing(false), variant: "ghost", children: "Cancel" })] })] }) })) : (_jsxs("div", { style: { display: "grid", gap: "12px", marginBottom: "20px" }, children: [_jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx(Btn, { onClick: startEditing, variant: "default", children: "Edit Project" }), _jsx(Btn, { onClick: handleDelete, variant: "danger", children: "Delete" })] }), project.prdText ? (_jsxs(Card, { children: [_jsx(Label, { children: "PRD" }), _jsx("pre", { style: {
+                                    ] })] }), _jsxs("div", { children: [_jsx(Label, { children: "PRD" }), _jsxs("div", { style: { display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }, children: [_jsxs("label", { style: {
+                                                padding: "8px 16px", backgroundColor: "#374151", color: C.text,
+                                                borderRadius: "6px", fontSize: "13px", fontWeight: 500, cursor: "pointer",
+                                                border: `1px solid ${C.border}`,
+                                            }, children: ["Upload File", _jsx("input", { type: "file", accept: ".md,.txt,.markdown,.rst,.prd", onChange: (e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (!file)
+                                                            return;
+                                                        const reader = new FileReader();
+                                                        reader.onload = (ev) => {
+                                                            const text = ev.target?.result;
+                                                            if (text)
+                                                                setEditPrd(text);
+                                                        };
+                                                        reader.readAsText(file);
+                                                    }, style: { display: "none" } })] }), _jsx("span", { style: { color: C.textDim, fontSize: "12px" }, children: "or edit below" })] }), _jsx(TextArea, { value: editPrd, onChange: setEditPrd, placeholder: "PRD text...", rows: 12 })] }), _jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx(Btn, { onClick: handleSave, variant: "primary", children: "Save" }), _jsx(Btn, { onClick: () => setEditing(false), variant: "ghost", children: "Cancel" })] })] }) })) : (_jsxs("div", { style: { display: "grid", gap: "12px", marginBottom: "20px" }, children: [_jsxs("div", { style: { display: "flex", gap: "8px" }, children: [_jsx(Btn, { onClick: startEditing, variant: "default", children: "Edit Project" }), _jsx(Btn, { onClick: handleDelete, variant: "danger", children: "Delete" })] }), project.prdText ? (_jsxs(Card, { children: [_jsx(Label, { children: "PRD" }), _jsx("pre", { style: {
                                     color: C.text, fontSize: "13px", lineHeight: "1.5",
                                     whiteSpace: "pre-wrap", wordBreak: "break-word",
                                     maxHeight: "300px", overflow: "auto", margin: 0,
