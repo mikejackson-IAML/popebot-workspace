@@ -1,4 +1,0 @@
-{
-  "title": "Add Tool Registry Manager UI component to plugin Settings area",
-  "job": "Add a Tool Registry Manager component to the plugin UI Settings area (matches the existing `showSettings` block in `ui/index.tsx`). Renders a table of all tools with columns: id, name, category, tenants, status. Row actions: Edit, Remove (calls `delete-tool`; if blocked, shows a modal listing referencing projects with Cancel and Force Remove buttons — Force Remove calls `force-delete-tool` after explicit confirmation). Header actions: Add Tool (opens the Add Tool form from job-8), Refresh Status (calls `refresh-tool-status` with no id to refresh all). Uses `usePluginData('tool-registry')` and `usePluginAction` per existing patterns."
-}
