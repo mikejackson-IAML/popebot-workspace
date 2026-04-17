@@ -1,4 +1,0 @@
-{
-  "title": "Build comprehensive mail settings admin page with six config sections",
-  "job": "Create the Mail Settings/Admin page. Sections: (1) Mailbox configuration — display connected Gmail account, sync mode toggle (push vs schedule), last_history_id, reconnect button; (2) Voice profile editor — view/edit mike, phoebe, iaml-neutral profile attributes; (3) Label/status mappings; (4) Filtering controls — list mail_rules with enable/disable toggle, add custom rule; (5) Sensitivity/human-only thresholds; (6) Default approval mode toggle (draft-only vs approve-and-send). Wire to backend config endpoints."
-}
