@@ -1,0 +1,4 @@
+{
+  "title": "Build Paperclip Review Queue page with prioritized email review cards",
+  "job": "Create the Review Queue page in Paperclip. Render prioritized cards (sorted by urgency + aging) showing: sender, subject, thread summary, category badge, urgency indicator, selected voice pill, proposed reply body (editable textarea), rationale, memory-used provenance list, uncertainty/missing-info callouts, confidence score. Action buttons: Approve & Send, Approve as Draft Only, Edit & Send, Reject, No Reply Needed, Change Voice (dropdown: mike/phoebe/iaml-neutral), Mark Human-Only, Snooze, Save as Template, Propose Memory Update, Propose Filter Rule. Wire each action to POST /mail/review/:id/action."
+}
