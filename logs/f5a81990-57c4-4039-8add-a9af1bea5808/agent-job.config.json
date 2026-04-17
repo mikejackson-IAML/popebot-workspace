@@ -1,4 +1,0 @@
-{
-  "title": "Create tool registry module wrapping plugin instance state reads/writes",
-  "job": "Create a small module that wraps reads/writes of the tool registry from plugin instance state at `{ scopeKind: 'instance', namespace: 'automation', stateKey: 'tool-registry' }`. Export functions: `loadToolRegistry(ctx): Promise<ToolRegistryEntry[]>`, `saveToolRegistry(ctx, entries)`, `upsertTool(ctx, entry)`, `removeToolById(ctx, id)`, `findToolsForTenant(entries, tenant)` (returns entries whose `tenants` includes tenant or is `['*']`). Follow the existing `saved-repos` / `anthropic-api-key` plugin state pattern. Updates `updatedAt` on every upsert; sets `createdAt` on first insert."
-}
