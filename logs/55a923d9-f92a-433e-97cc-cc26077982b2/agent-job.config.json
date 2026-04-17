@@ -1,4 +1,0 @@
-{
-  "title": "Build LLM semantic triage layer with confidence gating and classification",
-  "job": "Create the semantic triage layer that calls an LLM to classify messages that pass through deterministic filtering. Function classifySemantic(message, threadContext): returns {needsReply, category, urgencyScore, businessRelevanceScore, humanOnly, humanOnlyReason, recommendedVoice, confidenceScore, rationale}. Implement confidence gating (high→draft, medium→draft with caution, low→summarize/escalate). Detect human-only signals (legal, complaint, negotiation, emotional, high-uncertainty) per PRD 9.11."
-}
