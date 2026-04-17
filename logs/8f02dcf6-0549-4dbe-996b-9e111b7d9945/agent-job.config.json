@@ -1,0 +1,4 @@
+{
+  "title": "Implement Gmail sync service with OAuth, history API, and draft management",
+  "job": "Implement gmail-sync-service. Create a Gmail API client wrapper using tenant-scoped OAuth credentials from mail_accounts.auth_ref. Implement: initialSync(accountId) that pulls recent threads/messages; incrementalSync(accountId) using Gmail history API with last_history_id watermark; upsertThread() and upsertMessage() that write to mail_threads/mail_messages with idempotency on external_message_id; createGmailDraft(threadId, body) and sendDraft(draftId); updateLabels(messageId, addLabels, removeLabels). Include a scheduled runner entry point for polling mode. Persist last_history_id after each sync. All operations strictly filter by tenant_id='iaml'."
+}
