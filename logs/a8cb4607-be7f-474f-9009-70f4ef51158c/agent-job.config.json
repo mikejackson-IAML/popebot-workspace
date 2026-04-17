@@ -1,0 +1,4 @@
+{
+  "title": "Generate PRD Section 12 database migration for all mail tables",
+  "job": "Create a database migration file defining all tables from PRD section 12: mail_accounts, mail_threads, mail_messages, mail_draft_candidates, mail_review_events, mail_contact_memory, mail_memory_proposals, mail_rules. Include all columns specified, tenant_id foreign keys, indexes on (tenant_id, external_thread_id), (tenant_id, status), (tenant_id, received_at), and appropriate JSONB columns. Ensure all tables enforce tenant scoping. Include check constraints for enum-like fields (status, category, sender_class, proposal_type)."
+}
