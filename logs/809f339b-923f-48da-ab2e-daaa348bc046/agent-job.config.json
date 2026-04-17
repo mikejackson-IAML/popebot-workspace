@@ -1,4 +1,0 @@
-{
-  "title": "Generate AI draft candidates and sync to Gmail for email triage",
-  "job": "Create mail-draft-service. Function generateDraftCandidate(messageId): uses triage output + RetrievalBundle from memory retriever + selected voice profile to call LLM and produce {threadSummary, proposedReplyText, rationale, uncertaintyNotes, confidenceScore, recommendedAction}. For human_only messages, produce scaffold/notes only, not polished send-ready text. Create Gmail draft via gmail-sync-service.createGmailDraft() and store draft_id. Insert row into mail_draft_candidates with status='draft_ready'. Prevent duplicate draft creation via unique (thread_id, source_message_id, status) check."
-}
