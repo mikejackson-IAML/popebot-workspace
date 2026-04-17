@@ -1,4 +1,0 @@
-{
-  "title": "Build mail review API with queue, review card, and action endpoints",
-  "job": "Create mail-review-api with HTTP endpoints: GET /mail/review/queue (returns prioritized draft candidates with joined message/thread/memory-used data), GET /mail/review/:id (full review card), POST /mail/review/:id/action accepting action types: approve_send, approve_draft_only, edit_send (with editedReply), reject, no_reply_needed, change_voice, mark_human_only, snooze, save_as_template, propose_memory, propose_filter. Each action updates mail_draft_candidates.status, writes a mail_review_events row with diff_json, and triggers side effects (send via Gmail, update labels, create proposal). Enforce tenant scoping on all endpoints."
-}
