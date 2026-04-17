@@ -1,0 +1,4 @@
+{
+  "title": "Generate V1 voice profiles config with getVoiceProfile and recommendVoice functions",
+  "job": "Create a voice profiles config file defining the three V1 voice profiles (mike, phoebe, iaml-neutral) per PRD section 15. Each profile must include: tone, brevity, warmth, formality, assertiveness, sentenceStyle, preferredPhrases, avoidedPhrases, openingStyle, closingStyle, calendarPosture, boundaryPosture. Export a getVoiceProfile(voice) function and a recommendVoice(context) function that applies V1 default policy (strategic→mike, operational→phoebe, general→iaml-neutral)."
+}
