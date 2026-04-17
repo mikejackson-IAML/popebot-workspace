@@ -1,4 +1,0 @@
-{
-  "title": "Build tenant-scoped mail memory context retrieval and ranking service",
-  "job": "Create mail-memory-retriever service. Function retrieveContext(tenantId, threadId, messageId): fetches and ranks (a) identity memory for IAML, (b) semantic memory entries relevant to message (vector/keyword search), (c) recent episodic events (approved/rejected drafts), (d) contact memory for sender from mail_contact_memory, (e) thread context (prior messages in thread). Returns a compressed RetrievalBundle with provenance refs for each item. Strictly tenant-scoped. Keep context compact to avoid prompt bloat."
-}
