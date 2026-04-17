@@ -1,4 +1,0 @@
-{
-  "title": "Build Proposal Queue page for pending mail memory proposals",
-  "job": "Create the Proposal Queue page showing pending mail_memory_proposals. For each proposal show: title, type (template/rule/filter/contact/faq), summary, proposed memory JSON (pretty-printed), evidence thread links, confidence score, created_at. Actions: Approve (promotes to canonical memory via governance service), Reject (with reason input). Wire to GET /mail/proposals and POST /mail/proposals/:id/{approve|reject}."
-}
