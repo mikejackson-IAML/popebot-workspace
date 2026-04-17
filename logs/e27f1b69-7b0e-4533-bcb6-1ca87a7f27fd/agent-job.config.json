@@ -1,4 +1,0 @@
-{
-  "title": "Inject pipeline tools array into builder agent prompts with event logging",
-  "job": "Modify `build-review-fix-cycle.sh` (and/or its caller that constructs builder prompts) to read the `tools` array from the pipeline-start payload and render an 'Available Tools for This Project' markdown section into each builder agent's prompt, formatted exactly as in PRD section 4c (bullet per tool with name, category, description sentence, credentials path, env vars, notes, docs). If the tools array is empty or absent, render nothing. Ensure the section is injected once per builder invocation, before the task-specific instructions. Also write the provisioned tool ids to the pipeline event log file for traceability."
-}
