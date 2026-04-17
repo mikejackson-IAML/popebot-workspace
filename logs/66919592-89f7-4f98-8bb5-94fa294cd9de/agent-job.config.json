@@ -1,4 +1,0 @@
-{
-  "title": "Build deterministic mail filter module with rule-based classification engine",
-  "job": "Create a deterministic filter module that evaluates mail_rules and hardcoded defaults against a message. Detect: noreply senders (regex on from address), known newsletter domains, receipt/billing patterns (subject + sender heuristics), cold sales outreach patterns, platform notifications. Function classifyDeterministic(message): returns {category, confidence, matchedRuleId}. Load active rules from mail_rules table for the tenant. Include first-pass default rule seed data."
-}
