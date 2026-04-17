@@ -1,14 +1,41 @@
-**VERDICT: APPROVE**
+**VERDICT: REQUEST CHANGES**
 
-No compile-time errors, import issues, missing required props, or breaking data model problems detected. Code is Phase 1-ready.
+---
 
-**Minor notes for future phases:**
+## Blocking Finding
 
-- **ReviewVerdict type** (worker/types.ts:37) — excludes `"reject"` but UI includes it locally. Current code works via `as` assertion, but unify the types in Phase 2 by adding `"reject"` to the union.
-- **Model IDs** (llm-client.ts:8-11) — using dated snapshots (claude-opus-4-20250514, claude-sonnet-4-20250514). Consider updating to latest: claude-opus-4-6, claude-sonnet-4-6 when validated against active API.
-- **RTX orchestrator URL** hardcoded (worker.ts:17) — may need env config in Phase 2 if deployed to different environments.
+**src/manifest.ts:24** — Missing sidebar slot definition
 
-All data models, state handlers, actions, and UI components are internally consistent and correctly wired. Ready to build.
+The `AutomationSidebar` component is exported from `src/ui/index.tsx` but missing from the UI slots in the manifest. The `paperclip-plugin.json` includes the `projectSidebarItem` slot, but `src/manifest.ts` only declares the `detailTab`. This mismatch will prevent the sidebar component from being registered at runtime.
+
+**Fix**: Add the sidebar slot to `src/manifest.ts`:
+
+```typescript
+ui: {
+  slots: [
+    {
+      type: "projectSidebarItem",
+      id: "automation-sidebar",
+      displayName: "Automation",
+      exportName: "AutomationSidebar",
+      entityTypes: ["project"],
+    },
+    {
+      type: "detailTab",
+      id: "automation-projects",
+      displayName: "Projects",
+      exportName: "ProjectsTab",
+      entityTypes: ["project"],
+    },
+  ],
+},
+```
+
+Also add `"ui.sidebar.register"` to the capabilities array to match `paperclip-plugin.json`.
+
+---
+
+All other files compile correctly, imports are valid, and props are properly typed. Fix the manifest registration and this is ready to merge.
 
 ---
 REVIEW_TIER: haiku
