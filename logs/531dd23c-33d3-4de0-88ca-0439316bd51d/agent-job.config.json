@@ -1,4 +1,0 @@
-{
-  "title": "Inject tenant-filtered tool registry into architect context with needs-tool signal rules",
-  "job": "Append the 'Available Tools Context' block from the PRD to ARCHITECT_SYSTEM_PROMPT. Modify the architect invocation site so that when starting a review it loads `tool-registry` filtered to the project's tenant and injects a 'Tools available to this project' markdown list (id, name, category, description, usageNotes) into the architect's initial context alongside the PRD. Document the `<needs-tool>suggested-id</needs-tool>` signal and the rule that the architect must not advance to the skeptic recommendation phase while any unresolved needs-tool tag remains."
-}
