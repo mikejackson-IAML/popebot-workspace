@@ -1,0 +1,4 @@
+{
+  "title": "Render project required tools as interactive registry-linked status chips",
+  "job": "In the existing project detail view, render the project's `requiredTools` as chips. Each chip shows the tool name, category, and a status indicator (configured/not-configured) loaded from the registry. Clicking a chip opens the Tool Registry Manager scrolled to that entry (or opens the edit form for it). If a required tool ID is no longer in the registry, render a red 'Missing from registry' chip."
+}
