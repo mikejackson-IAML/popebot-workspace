@@ -1,0 +1,4 @@
+{
+  "title": "Build mail memory governance service with proposal and approval workflows",
+  "job": "Create mail-memory-governance-service. Implement pattern detection that scans recent approvals/edits in mail_review_events and flags recurring new reply types (N similar approved drafts without matching semantic memory → propose template). Function proposeMemoryAddition(type, title, summary, proposedJson, evidenceRefs) inserts into mail_memory_proposals with status='pending'. Implement approveProposal(id) that promotes to canonical memory (semantic memory table, mail_rules, or mail_contact_memory depending on proposal_type) and rejectProposal(id, reason). Expose GET /mail/proposals and POST /mail/proposals/:id/{approve|reject} endpoints. Never auto-promote."
+}
