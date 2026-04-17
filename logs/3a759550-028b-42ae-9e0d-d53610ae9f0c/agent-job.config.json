@@ -1,0 +1,4 @@
+{
+  "title": "Parse architect needs-tool tags and gate skeptic progression UI",
+  "job": "In the architect review UI, parse the architect's response for `<needs-tool>...</needs-tool>` tags. For each tag, render a Tool Request prompt with two actions: 'Add tool' (opens the ToolForm from job-8 prefilled with the suggested id and the current project's tenant; on save, also adds the new tool to the project's `requiredTools`) and 'Not needed' (dismisses the request for this review session). Block the 'Proceed to skeptic' button until all needs-tool tags are resolved. Persist dismissals only for the current review session."
+}
