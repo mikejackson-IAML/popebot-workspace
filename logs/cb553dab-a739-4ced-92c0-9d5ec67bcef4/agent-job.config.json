@@ -1,4 +1,0 @@
-{
-  "title": "Generate TypeScript type definitions for mail domain entities and enums",
-  "job": "Create TypeScript type definitions for all mail domain entities matching the schema: MailAccount, MailThread, MailMessage, MailDraftCandidate, MailReviewEvent, MailContactMemory, MailMemoryProposal, MailRule. Define enums for InternalStatus (new, filtered, needs_review, human_only, draft_ready, approved_draft, sent, rejected, snoozed, waiting), Category (newsletter, receipt, reply_needed, urgent, human_only, etc.), SenderClass, VoiceProfile ('mike'|'phoebe'|'iaml-neutral'), RecommendedAction, and ProposalType. Export all from an index."
-}
