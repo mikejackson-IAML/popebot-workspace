@@ -1,0 +1,4 @@
+{
+  "title": "Add tenant dropdown and tool selector with validation to project form",
+  "job": "Modify the existing create/edit project form to add: (1) a required Tenant dropdown using KNOWN_TENANTS, disabled on edit if already set; (2) a Project Tool Selector multi-select that loads `tool-registry` filtered by the chosen tenant, displays each tool with its status indicator inline (configured = green, not-configured = amber), and writes selections to `requiredTools`. The tool selector re-loads when the tenant changes. Validates tenant is present before allowing save. Also renders a banner on existing projects missing `tenant` saying 'Assign tenant before this project can be built' with a link to set it."
+}
