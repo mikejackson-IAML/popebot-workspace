@@ -1,4 +1,0 @@
-{
-  "title": "Augment start-pipeline handler with tool validation, enrichment, and logging",
-  "job": "Modify the `start-pipeline` action handler. Before posting to RTX `/pipeline/start`: (1) call `validate-project-tools` (from job-6); if any tool fails, abort the pipeline start and return `{ ok: false, toolFailures: [...] }` so the UI can render which tools are missing and what env vars are absent. (2) On success, build a `tools` array of objects `{ id, name, category, credentialRef (resolved with tenant substitution), envVars: expectedEnvVars, usageNotes, docsUrl }` and add it as a `tools` field on the existing `/pipeline/start` payload. (3) Append the list of provisioned tool ids to the pipeline event log entry written for this run."
-}
