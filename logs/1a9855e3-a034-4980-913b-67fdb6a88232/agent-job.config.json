@@ -1,4 +1,0 @@
-{
-  "title": "Extend Project Automation plugin types with tool registry and tenant fields",
-  "job": "Add ToolCategory, ToolStatus, and ToolRegistryEntry types per the PRD's Data Model Changes section. Modify the existing ManagedProject interface to add `tenant: string` (required) and `requiredTools: string[]` (default []). Export all new types. Locate the existing types module for the Project Automation plugin (likely `src/types.ts` or `src/types/index.ts` within the plugin source). Also export a constant `KNOWN_TENANTS` array with values `['iaml', 'ratchetiq', 'personal']` for the tenant selector dropdown. Add a helper `resolveCredentialRef(template: string, tenant: string): string` that substitutes `{tenant}` in a path template."
-}
