@@ -1,4 +1,0 @@
-{
-  "title": "Orchestrate end-to-end email triage pipeline with classification and labeling",
-  "job": "Create mail-triage-service that orchestrates the triage pipeline. For each new message: run deterministic filter, resolve sender from mail_contact_memory (create stub if unknown), if deterministic no-reply → apply label and set status='filtered'; otherwise run semantic classifier; compute priority (urgency + business_relevance + aging); update mail_messages with category/needs_reply/urgency_score/confidence_score; update mail_threads.latest_* fields; set internal status (needs_review, human_only, or filtered); apply Gmail labels via gmail-sync-service (IAML/Needs-Reply, IAML/Urgent, IAML/Human-Only, IAML/No-Reply, IAML/FYI)."
-}
