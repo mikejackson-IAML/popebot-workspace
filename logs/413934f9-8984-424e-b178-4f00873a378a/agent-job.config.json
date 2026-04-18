@@ -1,4 +1,0 @@
-{
-  "title": "Register refresh-tool-status and validate-project-tools action handlers",
-  "job": "Register two more action handlers. `refresh-tool-status`: accepts `{ id?: string, tenant?: string }`; for each matching tool, resolves `credentialRef` (substituting `{tenant}` if a tenant is supplied or, when refreshing all without a tenant, leaves templated paths as `not-configured` with a note), calls the RTX `GET /tools/check` endpoint with the path and `expectedEnvVars`, sets `status` to `configured` only if `exists === true && missingVars.length === 0`, otherwise `not-configured`; persists. `validate-project-tools`: accepts `{ projectId }`; loads the project, resolves each required tool's credentialRef using the project's tenant, calls `/tools/check` for each, returns `{ ok: boolean, results: Array<{ id, ok, exists, missingVars }> }`. Both use a small shared `callToolsCheck(path, vars)` helper that hits the RTX URL and api key from existing config."
-}
