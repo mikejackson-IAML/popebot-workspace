@@ -1,0 +1,4 @@
+{
+  "title": "Build reusable tool registry form component with multi-mode submit",
+  "job": "Reusable form component with fields: id (slug), name, category (dropdown: api/service/cli/database), description, credentialRef (text, with helper note that `{tenant}` is substituted at build time), expectedEnvVars (comma-separated input parsed to string[]), docsUrl (optional), usageNotes (optional textarea), tenants (multi-select of KNOWN_TENANTS plus a `*` option). On submit, calls `create-tool` or `update-tool` based on mode prop. Used by both the Tool Registry Manager and the Tool Request Workflow (architect needs-tool flow)."
+}
