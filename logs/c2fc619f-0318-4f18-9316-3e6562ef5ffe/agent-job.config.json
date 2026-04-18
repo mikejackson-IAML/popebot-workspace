@@ -1,4 +1,0 @@
-{
-  "title": "Handle pipeline-start tool failures UI with blocking error and refresh",
-  "job": "Update the project detail / pipeline-start UI to handle the new `{ ok: false, toolFailures }` response from `start-pipeline`. Render a clear blocking error showing each failing tool: name, resolved credentialRef path, whether the file exists, and which expectedEnvVars are missing. Provide a 'Refresh status' button that re-runs `refresh-tool-status` for the project's tools and re-enables the Start Pipeline button when all are configured."
-}
