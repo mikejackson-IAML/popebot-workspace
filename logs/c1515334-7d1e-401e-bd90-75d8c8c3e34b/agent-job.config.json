@@ -1,4 +1,0 @@
-{
-  "title": "Register tool-registry and tool-status plugin data route handlers",
-  "job": "Register two plugin data handlers on the plugin's data router. `tool-registry`: accepts optional `{ tenant?: string }` filter; returns `ToolRegistryEntry[]`, filtered to that tenant (or all). `tool-status`: accepts `{ id: string }`; returns the current status field for a single tool from the registry. Both read via `loadToolRegistry` from job-3. Hook these into the existing data handler registration block."
-}
