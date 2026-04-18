@@ -1,41 +1,25 @@
 **VERDICT: REQUEST CHANGES**
 
----
+## Blocking Issues
 
-## Blocking Finding
+### Missing Sidebar Slot Registration
+**File: `plugins/dev-department/src/manifest.ts:manifest`**
 
-**src/manifest.ts:24** — Missing sidebar slot definition
+The manifest declares only the detail tab slot but is missing the sidebar slot that is:
+1. Exported in `src/ui/index.tsx:AutomationSidebar` 
+2. Defined in `paperclip-plugin.json` (sidebar item with ID `automation-sidebar`)
 
-The `AutomationSidebar` component is exported from `src/ui/index.tsx` but missing from the UI slots in the manifest. The `paperclip-plugin.json` includes the `projectSidebarItem` slot, but `src/manifest.ts` only declares the `detailTab`. This mismatch will prevent the sidebar component from being registered at runtime.
+**Required:**
+- Add `"ui.sidebar.register"` to the capabilities array
+- Add the sidebar slot object to `ui.slots` array (matching the definition in `paperclip-plugin.json`)
 
-**Fix**: Add the sidebar slot to `src/manifest.ts`:
-
-```typescript
-ui: {
-  slots: [
-    {
-      type: "projectSidebarItem",
-      id: "automation-sidebar",
-      displayName: "Automation",
-      exportName: "AutomationSidebar",
-      entityTypes: ["project"],
-    },
-    {
-      type: "detailTab",
-      id: "automation-projects",
-      displayName: "Projects",
-      exportName: "ProjectsTab",
-      entityTypes: ["project"],
-    },
-  ],
-},
-```
-
-Also add `"ui.sidebar.register"` to the capabilities array to match `paperclip-plugin.json`.
+Without this, the AutomationSidebar component will be exported but not registered with Paperclip, causing the sidebar to fail to load when the plugin initializes.
 
 ---
 
-All other files compile correctly, imports are valid, and props are properly typed. Fix the manifest registration and this is ready to merge.
+## Notes for Future Phases
+
+- **Minor type inconsistency** (non-blocking): `src/ui/index.tsx` redeclares `ReviewVerdict` type locally and includes `"reject"` value, but the worker's `types.ts` doesn't export this value. The worker never produces `verdict: "reject"` (uses `pipeline_failed` events instead). Consider importing types from worker or removing the unused variant from UI types.
 
 ---
 REVIEW_TIER: haiku
