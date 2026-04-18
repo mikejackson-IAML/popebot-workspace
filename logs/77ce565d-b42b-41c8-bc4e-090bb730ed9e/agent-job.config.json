@@ -1,0 +1,4 @@
+{
+  "title": "Register CRUD plugin action handlers for tool registry with project reference checks",
+  "job": "Register plugin action handlers: `create-tool` (validates required fields, generates timestamps, persists via upsertTool); `update-tool` (loads, merges, bumps updatedAt, persists); `delete-tool` (scans all ManagedProjects; if any reference the tool ID in `requiredTools`, returns `{ blocked: true, referencingProjects: [{ id, name, tenant }] }` without deleting; otherwise removes and returns `{ blocked: false }`); `force-delete-tool` (strips the tool ID from every project's `requiredTools`, persists project changes, then removes the registry entry). Use the existing project state module for project reads/writes."
+}
