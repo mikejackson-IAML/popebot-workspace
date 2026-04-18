@@ -1,25 +1,20 @@
 **VERDICT: REQUEST CHANGES**
 
-## Blocking Issues
+**Issue:** Syntax error — missing variable declaration.
 
-### Missing Sidebar Slot Registration
-**File: `plugins/dev-department/src/manifest.ts:manifest`**
+The manifest object literal has no `const` or declaration binding it to a name. Line 1 begins with `id:` but there's no `const manifest = {` before it.
 
-The manifest declares only the detail tab slot but is missing the sidebar slot that is:
-1. Exported in `src/ui/index.tsx:AutomationSidebar` 
-2. Defined in `paperclip-plugin.json` (sidebar item with ID `automation-sidebar`)
+**Fix:**
+```typescript
+const manifest = {
+  id: "dev-department",
+  // ... rest of properties
+};
 
-**Required:**
-- Add `"ui.sidebar.register"` to the capabilities array
-- Add the sidebar slot object to `ui.slots` array (matching the definition in `paperclip-plugin.json`)
+export default manifest;
+```
 
-Without this, the AutomationSidebar component will be exported but not registered with Paperclip, causing the sidebar to fail to load when the plugin initializes.
-
----
-
-## Notes for Future Phases
-
-- **Minor type inconsistency** (non-blocking): `src/ui/index.tsx` redeclares `ReviewVerdict` type locally and includes `"reject"` value, but the worker's `types.ts` doesn't export this value. The worker never produces `verdict: "reject"` (uses `pipeline_failed` events instead). Consider importing types from worker or removing the unused variant from UI types.
+This is a compile-time syntax error that will prevent TypeScript from parsing the file.
 
 ---
 REVIEW_TIER: haiku
