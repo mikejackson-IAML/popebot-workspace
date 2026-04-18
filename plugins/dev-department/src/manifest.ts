@@ -1,3 +1,4 @@
+const manifest: PaperclipPluginManifestV1 = {
   id: "dev-department",
   apiVersion: 1,
   version: "0.2.0",
@@ -11,13 +12,12 @@
     "ui.sidebar.register",
     "ui.detailTab.register",
     "http.outbound",
-    "secrets.read-ref",
     "projects.read",
     "activity.log.write",
   ],
   entrypoints: {
     worker: "./dist/worker.js",
-    ui: "./dist/ui/",
+    ui: "./dist/ui",
   },
   ui: {
     slots: [
