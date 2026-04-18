@@ -1,3 +1,6 @@
+import type { PaperclipPluginManifestV1 } from "@paperclipai/plugin-sdk";
+
+const manifest: PaperclipPluginManifestV1 = {
   id: "dev-department",
   apiVersion: 1,
   version: "0.2.0",
@@ -17,7 +20,7 @@
   ],
   entrypoints: {
     worker: "./dist/worker.js",
-    ui: "./dist/ui/",
+    ui: "./dist/ui",
   },
   ui: {
     slots: [
