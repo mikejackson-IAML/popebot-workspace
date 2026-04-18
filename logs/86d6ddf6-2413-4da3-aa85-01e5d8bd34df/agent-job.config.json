@@ -1,0 +1,4 @@
+{
+  "title": "Add secure GET /tools/check route to RTX orchestrator server",
+  "job": "Add a new `GET /tools/check` route to `server.py` on the RTX orchestrator. Query params: `path` (absolute credentialRef path) and `vars` (comma-separated env var names). Behavior: check the file exists and is readable; if so, parse env var names (KEYS ONLY — never read values) from the file (assume `KEY=value` lines, ignore comments/blank lines); compute which of the requested vars are missing. Return 200 JSON `{ exists: boolean, missingVars: string[] }` regardless of result. Reject with 401 if `x-api-key` header is missing or wrong (match the existing auth pattern used by other orchestrator endpoints). Path traversal safety: reject paths that don't start with `/srv/secrets/`."
+}
