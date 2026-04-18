@@ -1,19 +1,18 @@
-The PRD is ready to write to `plugins/dev-department/reports/phase-2-prd.md`. Here's a summary of what it covers:
+The PRD is ready but I need write permission to save it to `plugins/dev-department/reports/phase-2-prd.md`. Could you approve the write?
 
-**5 deliverables:**
+Here's a summary of what the PRD covers:
 
-1. **Persistence Layer** — async `StateStore` with `hydrate()`/`flush()`, `plugin.state` API integration, phaseId-indexed secondary maps, and a typed worker-UI message protocol (`src/worker/messages.ts` new file)
+**Phase 2: Dispatch Queue, Job Routing & Review Fixes**
 
-2. **UI-to-Worker Integration** — replace `useState`-only state management in `DepartmentView` with worker message-passing, wire the spec/PRD attachment stubs, pass `hasSpec`/`hasPRD` to `PhaseList`
+**8 deliverables:**
 
-3. **Build Dispatch** — full `BuildDispatch` CRUD, dispatch form in `PhaseDetail`, build packet assembly and emission to Paperclip event system (`src/worker/buildPacket.ts` new file)
+1. **Dispatch Queue Engine** (new file `dispatch-queue.ts`) -- Dependency-aware job queue that routes `code`/`workflow`/`config`/`schema` jobs to different PopeBot agent endpoints, tracks individual `popebotJobId`, handles parallel batch dispatch for independent jobs
+2. **RTX URL Configuration** -- Replace hardcoded Tailscale hostname with configurable URL stored in state
+3. **Wire Dispatch Queue into Pipeline** -- Refactor the 270-line inline polling loop in `worker.ts` into a ~30-line call to the queue
+4. **Shared Types** -- Delete 105 lines of duplicated types from UI, import from `worker/types.ts`, add missing `"reject"` verdict
+5. **Auto-Advance Timeout Fix** -- Add 30-minute timeout guards to both advance polling loops
+6. **CJS Require Fix** -- Replace `require()` with dynamic `import()` in ESM module
+7. **ActionBar Hook Violation Fix** -- Extract action buttons into own components to satisfy React hook rules
+8. **Clear Progress Log on Retry** -- One-liner fix
 
-4. **Minimal Status Transition Validation** — gate `ReadyForBuild` on approved spec + attached PRD, gate dispatch on `ReadyForBuild` status, inline error messages in UI
-
-5. **Deferred Bug Fixes** — stale closures, `sortOrder`/`phaseNumber` reconciliation, conversation ref status editing, `PhaseList` inline delete confirmation, redundant type casts
-
-**Files modified:** 6 existing (`state.ts`, `index.ts`, `DepartmentView.tsx`, `PhaseDetail.tsx`, `PhaseList.tsx`, `ConversationRefs.tsx`)
-**Files created:** 2 new (`messages.ts`, `buildPacket.ts`), 1 optional (`usePluginState.ts`)
-**20 testable acceptance criteria** across all deliverables.
-
-Would you like to approve the file write?
+**18 testable acceptance criteria**, explicit scope boundaries (5 files not to touch, 5 features deferred to later phases), and risk callouts for RTX API contract dependencies and circular dependency edge cases.
