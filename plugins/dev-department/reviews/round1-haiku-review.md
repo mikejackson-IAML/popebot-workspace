@@ -2,17 +2,40 @@
 
 ---
 
-## Blocking Findings
+## Blocking Finding
 
-**plugins/dev-department/src/manifest.ts:11–31**
-- Missing `"ui.sidebar.register"` capability (declared in `paperclip-plugin.json` but not in source manifest)
-- Missing `projectSidebarItem` slot definition for `AutomationSidebar` component (component is exported in `src/ui/index.tsx` but not declared in manifest)
+**src/manifest.ts:24** — Missing sidebar slot definition
 
-The compiled manifest (`dist/manifest.js`) will be missing the sidebar UI slot declaration, causing the `AutomationSidebar` component to fail registration at plugin initialization. This is a missing declaration issue that blocks Phase 1 integration.
+The `AutomationSidebar` component is exported from `src/ui/index.tsx` but missing from the UI slots in the manifest. The `paperclip-plugin.json` includes the `projectSidebarItem` slot, but `src/manifest.ts` only declares the `detailTab`. This mismatch will prevent the sidebar component from being registered at runtime.
 
-**Fix:** Add the missing capability and UI slot to match `paperclip-plugin.json`:
-- Add `"ui.sidebar.register"` to the `capabilities` array
-- Add the `projectSidebarItem` slot to `ui.slots` (copy from `paperclip-plugin.json`)
+**Fix**: Add the sidebar slot to `src/manifest.ts`:
+
+```typescript
+ui: {
+  slots: [
+    {
+      type: "projectSidebarItem",
+      id: "automation-sidebar",
+      displayName: "Automation",
+      exportName: "AutomationSidebar",
+      entityTypes: ["project"],
+    },
+    {
+      type: "detailTab",
+      id: "automation-projects",
+      displayName: "Projects",
+      exportName: "ProjectsTab",
+      entityTypes: ["project"],
+    },
+  ],
+},
+```
+
+Also add `"ui.sidebar.register"` to the capabilities array to match `paperclip-plugin.json`.
+
+---
+
+All other files compile correctly, imports are valid, and props are properly typed. Fix the manifest registration and this is ready to merge.
 
 ---
 REVIEW_TIER: haiku
