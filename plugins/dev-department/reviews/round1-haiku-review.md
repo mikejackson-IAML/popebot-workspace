@@ -2,27 +2,21 @@
 
 ---
 
-### Assessment
+## Code Quality Summary
 
-The code compiles successfully with no syntax errors, missing imports, wrong function signatures, or type mismatches that TypeScript would catch.
+The plugin compiles without errors. All imports resolve, types are consistent, and function signatures match their usage. The TypeScript configuration is standard (ESM module, React JSX, strict mode).
 
-All SDK imports (`@paperclipai/plugin-sdk`, `@paperclipai/plugin-sdk/ui`) are declared in `package.json` and correctly imported. The TypeScript configuration is standard and sufficient.
+## Notes for Future Phases
 
----
+1. **ActionBar hook pattern** (src/ui/index.tsx:115): The code assigns `usePluginAction` without calling it, then invokes `act(a.actionKey)`. This works if the SDK supports this curried pattern, but verify the SDK's intended API. If `usePluginAction` must be called per-action at the component root, restructure to avoid calling hooks inside event callbacks (violates Rules of Hooks).
 
-### Notes for Phase 1+
+2. **Dynamic SDK import** (src/ui/index.tsx:11): The require path to `@paperclipai/plugin-sdk/dist/ui/runtime` may not be exported. The fallback components provide coverage, so this is safe at runtime, but confirm the SDK exposes this module in future.
 
-1. **React hook rules in ActionBar** — `usePluginAction` is invoked conditionally inside a map/event handler (`const act = usePluginAction; ... fn = act(a.actionKey)`). While this compiles, it violates React hook calling rules and may cause runtime issues depending on how the SDK enforces hooks. Move the hook call to the top level of the component.
+3. **ReviewVerdict type divergence** (src/ui/index.tsx:175 vs. src/worker/types.ts:50): UI includes `"reject"` verdict, but worker/types.ts doesn't. Keep these in sync.
 
-2. **Dynamic SDK component loader** — The fallback mechanism for SDK components uses `require("@paperclipai/plugin-sdk/dist/ui/runtime")` inside a try-catch. This is safe, but the path may not exist in all bundler configurations. Verify this loads in the Paperclip runtime before release.
+4. **NOTE for Phase 2+**: The RTX orchestrator integration (src/worker.ts:~450) is a significant async polling loop. Consider adding backoff/jitter to the 10s and 15s polling intervals if the orchestrator gets congested.
 
-3. **Type duplication** — `ManagedProject`, `BuildJob`, etc. are defined in both `src/ui/index.tsx` and `src/worker/types.ts`. This avoids circular dependencies and is acceptable, but keep them in sync during future updates.
-
-4. **NOTE for Phase 2** — The fire-and-forget RTX orchestrator polling loops are intentionally async-unwaited. Monitor for stranded promises if the plugin is unloaded mid-pipeline.
-
----
-
-Code compiles and runs. Merge when ready for Phase 2 integration testing.
+All .d.ts files, package.json, and manifest are valid. No syntax, import, or type errors block compilation.
 
 ---
 REVIEW_TIER: haiku
