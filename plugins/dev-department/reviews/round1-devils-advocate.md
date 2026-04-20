@@ -1,28 +1,35 @@
-It seems the file write is being blocked by permissions. Here's my review:
+## Devils Advocate Review — Round 1
+
+**Verdict: CONCERNS**
 
 ---
 
-## Devils Advocate Review — Round 1
+### 1. `React` namespace used without import (compile risk)
 
-**Phase:** Project 3443f418-7b98-460a-8d56-2e4dfb1e7a10
+`src/ui/index.tsx` references `React.FC<P>`, `React.ReactNode`, and `React.ChangeEvent<HTMLInputElement>` without importing the `React` namespace. With `jsx: "react-jsx"`, JSX transforms are auto-injected, but type-level namespace references still require an explicit import.
 
-### Verdict: **CONCERNS**
+This was flagged as a REJECT by the round-1 codex gate and acknowledged (but not confirmed) by round-2 codex. The dist `.d.ts` files exist and appear correct, so the build may have succeeded under a different environment or older source. **I cannot confirm a hard compile failure without running `tsc`, so I'm not blocking**, but this is the single highest-risk item.
 
-**No compile errors, no wrong imports, no missing props, no breaking data model issues confirmed.**
+**NOTE for Phase 2:** Add `import type React from "react"` or destructure the needed types (`FC`, `ReactNode`, `ChangeEvent`) at the top of `src/ui/index.tsx`. One-line fix.
 
-All SDK imports resolve against `@paperclipai/plugin-sdk@2026.403.0`. Worker-side types are used consistently across `worker.ts`, `state.ts`, `prd-decomposer.ts`, and `types.ts`. Exports match manifest entrypoints. The `dist/*.d.ts` files confirm a prior successful `tsc` build.
+### 2. UI `ReviewVerdict` includes `"reject"` not in worker type
 
-### Notes for future phases:
+The UI's local `ReviewVerdict` adds `"reject"` which doesn't exist in `src/worker/types.ts`. Structurally safe (UI is more permissive), but the drift means a future refactor that imports from the canonical type will silently drop it.
 
-**NOTE for Phase 2 (compile hardening):** `src/ui/index.tsx` references `React.FC`, `React.ReactNode`, and `React.ChangeEvent` but only imports `{ useState } from "react"`. The `React` namespace is available via `@types/react` 19's `export as namespace React` UMD compat — proven by existing dist output. But this is fragile; add `import type React from "react"` to be explicit. Round 1 codex flagged this as REJECT; the dist artifacts disprove a current compile failure, so not blocking.
+**NOTE for Phase 2:** Unify UI types with worker types via shared import or re-export.
 
-**NOTE for Phase 2 (type drift):** UI-local `ReviewVerdict` includes `"reject"` absent from canonical `worker/types.ts`. Not a compile error but a runtime mismatch risk.
+### 3. `usePluginAction` called inside event handler (ActionBar fallback)
 
-**NOTE for Phase 3 (resilience):** `advance-project` polling loop has no timeout guard, unlike `start-pipeline` (30-min cap). Orphaned RTX advance job = indefinite polling.
+The `ActionBar` fallback component assigns `usePluginAction` to `act` and calls `act(a.actionKey)` inside an `onClick` handler. If the SDK treats this as a React hook, it violates rules of hooks. Works only if the SDK exports it as a plain function.
 
-**NOTE for Phase 3 (security):** API keys stored via `ctx.state.set` with `scopeKind: "instance"`. Manifest declares `secrets.read-ref` but code doesn't use the secrets API.
+**NOTE for Phase 3:** Verify SDK contract; if it's a hook, lift calls to component top level.
 
-**NOTE for Phase 3 (config):** `RTX_ORCHESTRATOR_URL` is a hardcoded Tailscale hostname. Needs env-config before deployment changes.
+---
+
+No compile errors confirmed, no wrong imports, no missing props, no breaking data model issues. All concerns are future-phase.
+
+---
+REVIEW_TIER: claude
 
 ---
 REVIEW_TIER: claude
