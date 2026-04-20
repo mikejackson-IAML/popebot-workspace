@@ -1,0 +1,4 @@
+{
+  "title": "Add Mission Control Handshake v3 marker file to dev-department plugin",
+  "job": "Add a new file at plugins/dev-department/HANDSHAKE-V3.md containing the Mission Control Handshake v3 marker text exactly as specified in the PRD, with the build agent filling in the ISO UTC timestamp on the 'Created by Mission Control's Development module at <ISO UTC timestamp>.' line. No other files are modified. Commit on the generated branch with a Conventional Commit message (e.g., 'docs(dev-department): add Handshake v3 marker')."
+}
