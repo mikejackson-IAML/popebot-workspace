@@ -1,4 +1,0 @@
-{
-  "title": "Create HELLO-MISSION-CONTROL.md file at repository root with metadata",
-  "job": "Create HELLO-MISSION-CONTROL.md at the repo root with the specified content (title, description, dispatched-at ISO-8601 UTC timestamp filled in by the build agent, source line, reviewer chain line, and closing confirmation sentence). This is the sole deliverable; no other files are touched."
-}
