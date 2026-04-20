@@ -1,4 +1,0 @@
-{
-  "title": "Create mission-control handshake Markdown file on feature branch",
-  "job": "Create HELLO-MISSION-CONTROL.md at the repository root with the specified handshake content. The build agent fills in the ISO-8601 UTC dispatch timestamp at build time. No other files are modified. Commit on a feature branch with a conventional commit message such as 'docs: add mission-control handshake marker' so the PR contains exactly one new file for the Haiku/DeepSeek/Codex review tiers to approve."
-}
