@@ -1,4 +1,0 @@
-{
-  "title": "Create and commit Mission Control Handshake v2 marker file",
-  "job": "Create a new file at plugins/dev-department/HANDSHAKE-V2.md containing the Mission Control Handshake v2 marker text as specified in the PRD. Fill in the current ISO UTC timestamp in place of <ISO UTC timestamp>. The body must include the heading '# Mission Control Handshake v2', the creation line with timestamp, and the explanatory paragraph noting that a merged PR means the three-tier review produced APPROVE / PASS / APPROVE. Commit on the generated branch using a conventional commit message (e.g. 'chore(dev-department): add handshake v2 marker'). Do not modify any existing files, add dependencies, or touch src/, agent-job/, skills/, or .github/."
-}
