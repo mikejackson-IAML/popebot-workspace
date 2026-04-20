@@ -1,34 +1,20 @@
-**VERDICT: APPROVE** ✅
+**VERDICT: APPROVE**
 
-**Scope:** Codex advisory mode test phase  
-**Bar:** Block only compile errors, wrong imports, missing props, data model breaks
+The code compiles and runs. All imports resolve correctly, function signatures match their call sites, and there are no syntax errors that would prevent TypeScript compilation.
 
-### Analysis
+**Notes:**
 
-The code compiles and runs. TypeScript has no blocking errors:
+1. **Duplicate type definitions** — `ReviewVerdict`, `BuildJob`, `PipelineRun`, etc. are defined in both `src/ui/index.tsx` and `src/worker/types.ts`. The UI definitions include `"reject"` in `ReviewVerdict`, but `src/worker/types.ts` defines it without `"reject"`. Unify these to a single source of truth (import from worker/types.ts in the UI, or move types to a shared module).
 
-- ✅ All imports exist (`@paperclipai/plugin-sdk`, `react`, etc.)
-- ✅ Function signatures match their callsites
-- ✅ Type definitions are consistent (with one caveat below)
-- ✅ Exports align with manifest entrypoints
-- ✅ tsconfig.json valid; no syntax errors
-- ✅ Package dependencies correct
+2. **ActionBar hook usage** — `usePluginAction` in the ActionBar component is stored as a reference and called later inside event handlers. This is unconventional but will type-check if the SDK exports it as a function (not strictly a React hook). Verify the SDK documentation for intended usage.
 
-### Notes for Phase 2+
+3. **Unused variables** — Some intermediate state variables (e.g., `fileName`, `showAddRepo` state in CreateProjectForm) are created but could be simplified or removed if not needed for future features.
 
-**Type consistency:** `ReviewVerdict` in `src/ui/index.tsx` includes `"reject"` but `src/worker/types.ts` doesn't. The UI superset won't break this phase, but should be unified.
+4. **Model ID versioning** — The hardcoded model IDs in `llm-client.ts` (e.g., `"claude-opus-4-20250514"`) are pinned to specific dates. These may need updates when newer model versions are released.
 
-**Configuration hardcoding:** RTX orchestrator URL is a tailnet IP (`mike-hp-z8-g4-workstation.tail0c39ca.ts.net:11438`). Works for dev; needs to be environment-configurable for production. Same for Anthropic API endpoint.
+5. **Missing error boundaries** — Some async operations (e.g., in `start-pipeline`, `approve-phase`) fire-and-forget without retry logic. Network failures are logged but silently swallowed; consider adding alerting for end users.
 
-**Auto-advance recursion:** Code stops chaining after the next project's pipeline completes (see note in `advance-project`). Consider making the recursion depth configurable to prevent accidental infinite loops.
-
-**Polling resilience:** 30-minute timeout on pipeline polling is good, but consecutive 404s bail after 3 tries (reasonable). Consider logging more explicitly why the orchestrator became unreachable.
-
-**Progress log:** Doesn't clear between retries; log will contain old entries. May want to wipe on `retry-pipeline`.
-
----
-
-**Ship it.** All runtime paths are sound; no data model breaks.
+All issues are style, architecture, or future-phase concerns — none block compilation or runtime execution.
 
 ---
 REVIEW_TIER: haiku
