@@ -1,33 +1,35 @@
+I can't write to the file due to permissions. Here's my review:
 
+---
 
-## Devils Advocate Review — Phase 1: Tool & Integration Access
+## Devils Advocate Review — Round 1
 
-**Verdict: CONCERNS**
+**Phase scope:** Project 75003acd-a52f-4c60-854a-5aea5406621d  
+**Bar:** Block only for compile errors, wrong imports, missing props, breaking data model issues.
 
-### Reviewed
+### Verdict: **CONCERNS**
 
-All 8 source files, dist declarations, package.json, tsconfig, and plugin manifest.
+---
 
-### No Blockers Found
+**No breaking data model issues. No missing props. No wrong imports that would prevent runtime loading.**
 
-- Types compile cleanly — all imports resolve within the project or via `@paperclipai/plugin-sdk`
-- No missing props on exported components (`AutomationSidebar` takes `PluginProjectSidebarItemProps`, `ProjectsTab` takes `PluginDetailTabProps`)
-- Data model is internally consistent across `types.ts`, `state.ts`, `worker.ts`, and `ui/index.tsx`
-- No breaking migration issues — state is key-value via `PluginStateClient`, not a schema'd DB
+Types in `worker/types.ts` are used consistently across `state.ts`, `llm-client.ts`, `prd-decomposer.ts`, and `worker.ts`. The UI component exports (`AutomationSidebar`, `ProjectsTab`) match their declared slot prop types. Manifest entrypoints align with built artifacts.
 
-### Concerns
+---
 
-1. **NOTE for Phase 2** — `ui/index.tsx` uses `require("@paperclipai/plugin-sdk/dist/ui/runtime")` — a CJS `require` in an ESM module. This works today because the SDK runtime host likely provides a CJS shim, but it's brittle. Should move to dynamic `import()` with a try/catch.
+### Potential compile issue (investigated, not blocking):
 
-2. **NOTE for Phase 2** — `ui/index.tsx` duplicates all type definitions from `worker/types.ts` rather than sharing them. These will drift. Consider a shared types package or re-export.
+**`React` namespace usage without namespace import** (`src/ui/index.tsx`): Uses `React.FC<P>`, `React.ReactNode`, `React.ChangeEvent<HTMLInputElement>` but only imports `{ useState } from "react"`. Round 1 codex flagged REJECT; round 2 codex found no confirmed blocker. The existing `dist/*.d.ts` files prove a successful prior compilation. **Not blocking** — dist artifacts exist — but fragile. Add `import type React from "react"` in Phase 2.
 
-3. **NOTE for Phase 3** — The `ActionBar` fallback calls `usePluginAction` at the top of the component but invokes it inside a click handler loop. React hooks rules are technically satisfied (the hook is `usePluginAction` called once per render, returning a factory), but the pattern is unusual — verify the SDK's `usePluginAction` returns a stable callable, not a hook itself.
+### Notes for future phases:
 
-4. **NOTE for Phase 3** — `worker.ts` has deeply nested fire-and-forget async chains (advance → decompose → start pipeline → poll → chain next advance). Unhandled rejections in inner closures would be silently swallowed. Not a blocker, but a reliability concern for production.
+- **NOTE for Phase 2:** `ReviewVerdict` in UI includes `"reject"` absent from `worker/types.ts`. Local type, no compile error, but drift risk.
+- **NOTE for Phase 3:** `require()` inside ESM (`src/ui/index.tsx:19`) depends on Paperclip's module host shimming CJS. Breaks if bundling changes.
+- **NOTE for Phase 3:** `advance-project` polling loop has no timeout guard (unlike `start-pipeline`'s 30-min cap). Orphaned RTX job = infinite poll.
+- **NOTE for Phase 4:** API keys stored via `ctx.state.set` plaintext. Manifest declares `secrets.read-ref` but doesn't use the secrets API.
 
-5. **NOTE for Phase 2** — `prd-decomposer.ts` system prompt says "Sending PRD to **Sonnet**" but the progress message says "Sending PRD to **Sonnet** for decomposition" while the system prompt header says "Opus." The actual model used is `"sonnet"`. Minor confusion in naming only.
-
-6. **NOTE for Phase 3** — `RTX_ORCHESTRATOR_URL` is hardcoded to a Tailscale hostname. Should be configurable via state/env for deployment flexibility.
+---
+REVIEW_TIER: claude
 
 ---
 REVIEW_TIER: claude
