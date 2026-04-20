@@ -1,4 +1,0 @@
-{
-  "title": "Create and commit mission-control handshake markdown file on new branch",
-  "job": "Create HELLO-MISSION-CONTROL.md at the repository root with the specified handshake content (heading, description paragraph, dispatched-at ISO-8601 UTC timestamp filled in by the build agent, source line, and reviewed-by line). Commit on a new branch with the conventional message 'docs: add mission-control handshake marker'. No other files may be modified."
-}
