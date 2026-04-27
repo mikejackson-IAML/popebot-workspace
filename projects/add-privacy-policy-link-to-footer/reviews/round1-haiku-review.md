@@ -1,9 +1,9 @@
-I see there's a modified file (`round1-haiku-review.md`), but I can't access the diff without approval. Could you either:
+I'm ready to review, but I don't see any changed files in the context. Could you either:
 
-1. Share the changed code/files directly, or
-2. Approve the git diff command so I can see what was modified
+1. Point me to the file(s) you'd like reviewed, or
+2. Let me know if you want me to review the modified file currently in git (`projects/add-privacy-policy-link-to-footer/reviews/round1-haiku-review.md`)
 
-Then I'll provide a quick verdict on whether it has any compile-time errors that would block it.
+What should I review?
 
 ---
 REVIEW_TIER: haiku
