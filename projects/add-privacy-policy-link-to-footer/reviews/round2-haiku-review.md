@@ -1,10 +1,6 @@
-I'm ready to review as the Quick Check Reviewer, but I don't see any changed files to review. Could you clarify:
+I'm ready to review as the Quick Check Reviewer. However, I don't see any changed files or code to review in your message. 
 
-1. Are you asking me to review a specific pull request? (I can use the `/review` skill)
-2. Do you want me to review the untracked file `projects/add-privacy-policy-link-to-footer/reviews/round2-haiku-review.md`?
-3. Should I review pending changes on the current branch?
-
-What would you like me to review?
+Please provide the code/changes you'd like me to review, and I'll give you a verdict (APPROVE or REQUEST CHANGES) following the Haiku tier criteria: I'll only block for compile-time errors, missing imports, wrong function signatures, or TypeScript type errors. Everything else gets APPROVE with optional notes.
 
 ---
 REVIEW_TIER: haiku
