@@ -1,6 +1,6 @@
-I'm ready to review as the Quick Check Reviewer. However, I don't see any changed files or code to review in your message. 
+I don't see any changed files to review. The "CHANGED FILES (full content):" section is empty, and no source code has been provided for the Phase 2 kimi smoke test 2 review.
 
-Please provide the code/changes you'd like me to review, and I'll give you a verdict (APPROVE or REQUEST CHANGES) following the Haiku tier criteria: I'll only block for compile-time errors, missing imports, wrong function signatures, or TypeScript type errors. Everything else gets APPROVE with optional notes.
+Could you provide the file(s) you'd like me to review?
 
 ---
 REVIEW_TIER: haiku
